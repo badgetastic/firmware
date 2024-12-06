@@ -1,6 +1,8 @@
 #define HAS_SDCARD
 #define SDCARD_USE_SPI1
 
+#define CANNED_MESSAGE_MODULE_ENABLE 1
+
 #define USE_SSD1306
 
 #define BATTERY_PIN 1 // A battery voltage measurement pin, voltage divider connected here to measure battery voltage
