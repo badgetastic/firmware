@@ -1,7 +1,7 @@
-#define HAS_SDCARD
-#define SDCARD_USE_SPI1
+
 
 #define CANNED_MESSAGE_MODULE_ENABLE 1
+
 
 #define USE_SSD1306
 
@@ -13,8 +13,8 @@
 #define I2C_SDA 18 // I2C pins for this board
 #define I2C_SCL 17
 
-#define I2C_SDA1 43
-#define I2C_SCL1 44
+// #define I2C_SDA1 43
+// #define I2C_SCL1 44
 
 #define LED_PIN 37   // If defined we will blink this LED
 #define BUTTON_PIN 0 // If defined, this will be used for user button presses,
@@ -23,10 +23,10 @@
 
 // TTGO uses a common pinout for their SX1262 vs RF95 modules - both can be enabled and we will probe at runtime for RF95 and if
 // not found then probe for SX1262
-#define USE_RF95 // RFM95/SX127x
+//#define USE_RF95 // RFM95/SX127x
 #define USE_SX1262
-#define USE_SX1280
-#define USE_LR1121
+//#define USE_SX1280
+//#define USE_LR1121
 
 #define LORA_SCK 5
 #define LORA_MISO 3
@@ -34,18 +34,11 @@
 #define LORA_CS 7
 #define LORA_RESET 8
 
-// per SX1276_Receive_Interrupt/utilities.h
-#define LORA_DIO0 9
-#define LORA_DIO1 33 // TCXO_EN ?
-#define LORA_DIO2 34
-#define LORA_RXEN 21
-#define LORA_TXEN 10
-
 // per SX1262_Receive_Interrupt/utilities.h
 #ifdef USE_SX1262
 #define SX126X_CS LORA_CS
-#define SX126X_DIO1 33
-#define SX126X_BUSY 34
+#define SX126X_DIO1 10
+#define SX126X_BUSY 9
 #define SX126X_RESET LORA_RESET
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
@@ -79,3 +72,8 @@
 
 #define HAS_SDCARD // Have SPI interface SD card slot
 #define SDCARD_USE_SPI1
+
+#define HAS_NEOPIXEL                         // Enable the use of neopixels
+#define NEOPIXEL_COUNT 1                     // How many neopixels are connected
+#define NEOPIXEL_DATA 38                     // gpio pin used to send data to the neopixels
+#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800) // type of neopixels in use
