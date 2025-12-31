@@ -85,7 +85,12 @@ unsigned char MPR121_LongPressMap[12] = {MPR121_ESC,  ' ',         MPR121_NONE, 
     11, 8, 5, 2
 };*/
 // Rotated Layout
+#ifndef BADGETASTIC_KEYPAD
 uint8_t MPR121_KeyMap[12] = {2, 5, 8, 11, 1, 4, 7, 10, 0, 3, 6, 9};
+#endif
+#ifdef BADGETASTIC_KEYPAD
+uint8_t MPR121_KeyMap[12] = {2, 5, 8, 11, 10, 7, 9, 4, 6, 3, 0, 1};
+#endif
 
 MPR121Keyboard::MPR121Keyboard() : m_wire(nullptr), m_addr(0), readCallback(nullptr), writeCallback(nullptr)
 {
