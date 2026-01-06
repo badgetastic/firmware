@@ -13,6 +13,7 @@
 
 extern ScanI2C::DeviceAddress cardkb_found;
 extern uint8_t kb_model;
+KbI2cBase *kbI2cBase;
 
 KbI2cBase::KbI2cBase(const char *name)
     : concurrency::OSThread(name),
@@ -25,6 +26,11 @@ KbI2cBase::KbI2cBase(const char *name)
 #endif
 {
     this->_originName = name;
+    kbI2cBase = this;
+#ifdef KB_INTERRUPT
+    pinMode(KB_INTERRUPT, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(KB_INTERRUPT), kbIsrStatic, CHANGE);
+#endif
 }
 
 uint8_t read_from_14004(TwoWire *i2cBus, uint8_t reg, uint8_t *data, uint8_t length)
@@ -42,6 +48,12 @@ uint8_t read_from_14004(TwoWire *i2cBus, uint8_t reg, uint8_t *data, uint8_t len
         readflag = 1;
     }
     return readflag;
+}
+
+void KbI2cBase::kbIsrStatic()
+{
+    if (kbI2cBase)
+        kbI2cBase->setIntervalFromNow(1);
 }
 
 int32_t KbI2cBase::runOnce()

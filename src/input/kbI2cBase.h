@@ -12,6 +12,7 @@ class KbI2cBase : public Observable<const InputEvent *>, public concurrency::OST
 {
   public:
     explicit KbI2cBase(const char *name);
+    static void kbIsrStatic();
     void toggleBacklight(bool on);
 
   protected:
@@ -27,3 +28,5 @@ class KbI2cBase : public Observable<const InputEvent *>, public concurrency::OST
     TCA8418KeyboardBase &TCAKeyboard;
     bool is_sym = false;
 };
+
+extern KbI2cBase *kbI2cBase;
