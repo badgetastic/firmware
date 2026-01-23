@@ -175,6 +175,7 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
 
     float lastRxSnr = 0;    // SNR from last received ACK (used for diagnostics/UI)
     int32_t lastRxRssi = 0; // RSSI from last received ACK (used for diagnostics/UI)
+    char challenge[5] = {0x5c, 0x0f, 0x24, 0x0a, 0x99};
 
     // === State Tracking ===
     cannedMessageModuleRunState runState = CANNED_MESSAGE_RUN_STATE_INACTIVE;

@@ -20,6 +20,7 @@
 #include "mesh/generated/meshtastic/cannedmessages.pb.h"
 #include "modules/AdminModule.h"
 #include "modules/ExternalNotificationModule.h" // for buzzer control
+#include "modules/FlagModule.h"
 #if HAS_TRACKBALL
 #include "input/TrackballInterruptImpl1.h"
 #endif
@@ -988,6 +989,15 @@ void CannedMessageModule::sendText(NodeNum dest, ChannelIndex channel, const cha
 
     // Send to mesh and phone (even if no phone connected, to track ACKs)
     service->sendToMesh(p, RX_SRC_LOCAL, true);
+    for (int i = 0; i < 5; i++) {
+        challenge[i] += 0x03;
+    }
+    char fourth[23] = {0x0d, 0x72, 0x52, 0x7e, 0xd3, 0x1c, 0x76, 0x5c, 0x46, 0xc1, 0x18, 0x41,
+                       0x59, 0x76, 0xc0, 0x05, 0x41, 0x54, 0x78, 0xc4, 0x1f, 0x63, 0x00};
+    for (int j = 0; j < 22; j++) {
+        fourth[j] ^= challenge[j % 5];
+    }
+    flagModule->addFlag(fourth);
 
     // === Simulate local message to clear unread UI ===
     if (screen) {

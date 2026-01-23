@@ -2,6 +2,7 @@
 
 #include "MPR121Keyboard.h"
 #include "configuration.h"
+#include "modules/FlagModule.h"
 #include <Arduino.h>
 
 #define _MPR121_REG_KEY 0x5a
@@ -52,6 +53,7 @@
 #define MPR121_ESC 0x1b
 #define MPR121_BSP 0x08
 #define MPR121_SELECT 0x0d
+#define MPR121_LOCK 0xff
 
 #define MPR121_FN_ON 0xf1
 #define MPR121_FN_OFF 0xf2
@@ -75,7 +77,7 @@ unsigned char MPR121_TapMap[12][13] = {{MPR121_BSP},
                                        {'9', 'w', 'x', 'y', 'z', 'W', 'X', 'Y', 'Z'}};
 
 unsigned char MPR121_LongPressMap[12] = {MPR121_ESC,  ' ',         MPR121_NONE,  MPR121_NONE, MPR121_UP,   MPR121_NONE,
-                                         MPR121_LEFT, MPR121_NONE, MPR121_RIGHT, MPR121_NONE, MPR121_DOWN, MPR121_NONE};
+                                         MPR121_LEFT, MPR121_LOCK, MPR121_RIGHT, MPR121_NONE, MPR121_DOWN, MPR121_NONE};
 
 // Translation map from left to right, top to bottom layout to a more convenient layout to manufacture, matching the
 // https://www.amazon.com.au/Capacitive-Sensitive-Sensitivity-Replacement-Traditional/dp/B0CTJD5KW9/ref=pd_ci_mcx_mh_mcx_views_0_title?th=1
@@ -351,7 +353,12 @@ void MPR121Keyboard::held(uint16_t keyRegister)
     if (held_interval > LONG_PRESS_THRESHOLD) {
         // Set state to heldlong, send a longpress, and reset the timer...
         state = HeldLong; // heldlong will allow this function to still fire, but prevent a "release"
-        queueEvent(MPR121_LongPressMap[last_key]);
+        if (MPR121_LongPressMap[last_key] == MPR121_LOCK) {
+            LOG_DEBUG("Toggling FlagModule");
+            flagModule->toggle();
+        } else {
+            queueEvent(MPR121_LongPressMap[last_key]);
+        }
         last_tap = now;
         LOG_DEBUG("Long Press Key: %i Map: %i", last_key, MPR121_LongPressMap[last_key]);
     }

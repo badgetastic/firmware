@@ -39,6 +39,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "draw/NotificationRenderer.h"
 #include "draw/UIRenderer.h"
 #include "modules/CannedMessageModule.h"
+#include "modules/FlagModule.h"
+#include "modules/LogoModule.h"
 
 #if !MESHTASTIC_EXCLUDE_GPS
 #include "GPS.h"

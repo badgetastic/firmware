@@ -12,6 +12,8 @@
 #include "main.h"
 #include "modules/CannedMessageModule.h"
 #include "modules/ExternalNotificationModule.h"
+#include "modules/FlagModule.h"
+#include "modules/LogoModule.h"
 #include "power.h"
 #include "sleep.h"
 #ifdef ARCH_PORTDUINO

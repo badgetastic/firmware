@@ -95,6 +95,18 @@ const uint8_t icon_mail[] PROGMEM = {
     0b11111111  // ████████ bottom
 };
 
+// 🏁 Flags
+const uint8_t icon_flag[] PROGMEM = {
+    0b10101010, // █ █ █ █  top border
+    0b11010101, // ██ █ █ █ sides
+    0b10101010, // █ █ █ █  diagonal
+    0b11010101, // ██ █ █ █ inner M
+    0b10101010, // █ █ █ █  inner M
+    0b10000000, // █        sides
+    0b10000000, // █        sides
+    0b10000000  // █        bottom
+};
+
 // 📍 GPS Screen / Location Pin
 const unsigned char icon_compass[] PROGMEM = {
     0x3C, // Row 0: ..####..

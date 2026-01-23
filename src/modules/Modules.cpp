@@ -30,6 +30,8 @@
 #if !MESHTASTIC_EXCLUDE_CANNEDMESSAGES
 #include "modules/CannedMessageModule.h"
 #endif
+#include "modules/FlagModule.h"
+#include "modules/LogoModule.h"
 #if !MESHTASTIC_EXCLUDE_DETECTIONSENSOR
 #include "modules/DetectionSensorModule.h"
 #endif
@@ -234,6 +236,8 @@ void setupModules()
         cannedMessageModule = new CannedMessageModule();
     }
 #endif
+    flagModule = new FlagModule();
+    logoModule = new LogoModule();
 #if ARCH_PORTDUINO
     new HostMetricsModule();
 #endif
