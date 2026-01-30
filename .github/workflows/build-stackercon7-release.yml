@@ -1,0 +1,17 @@
+name: Build StackerCon 7 Firmware
+
+on:
+  push:
+    branches:
+      - STAckerCon7_Release
+  pull_request:
+    branches:
+      - STAckerCon7_Release
+
+jobs:
+  build:
+    uses: ./.github/workflows/build_firmware.yml
+    with:
+      version: ${{ github.sha }}
+      platform: esp32s3
+      pio_env: badgetastic
