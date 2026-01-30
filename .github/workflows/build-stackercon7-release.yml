@@ -8,6 +8,8 @@ on:
     branches:
       - STAckerCon7_Release
 
+permissions: read-all
+
 jobs:
   build:
     uses: ./.github/workflows/build_firmware.yml
