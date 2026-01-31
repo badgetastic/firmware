@@ -41,6 +41,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "modules/CannedMessageModule.h"
 #include "modules/FlagModule.h"
 #include "modules/LogoModule.h"
+#include "modules/PetModule.h"
 
 #if !MESHTASTIC_EXCLUDE_GPS
 #include "GPS.h"

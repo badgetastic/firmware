@@ -14,6 +14,7 @@
 #include "modules/ExternalNotificationModule.h"
 #include "modules/FlagModule.h"
 #include "modules/LogoModule.h"
+#include "modules/PetModule.h"
 #include "power.h"
 #include "sleep.h"
 #ifdef ARCH_PORTDUINO

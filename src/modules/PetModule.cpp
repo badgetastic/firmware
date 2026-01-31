@@ -14,9 +14,9 @@
 #include "mbedtls/entropy.h"
 #include <Preferences.h>
 
+#include "mesh/generated/meshtastic/pet.pb.h"
 #include "pb_decode.h"
 #include "pb_encode.h"
-#include "pet.pb.h"
 
 #define SCREEN_WIDTH display->getWidth()
 #define SCREEN_HEIGHT display->getHeight()
@@ -130,6 +130,170 @@ const std::array<uint8_t, 65> petServerPublicKey = {0x04, 0x56, 0xd8, 0x24, 0xbf
                                                     0x8b, 0x7c, 0x7c, 0x33, 0xee, 0x05, 0x09, 0x03, 0x11, 0x48, 0x91, 0x10, 0x81,
                                                     0x97, 0xb6, 0xad, 0x1a, 0xa6, 0x19, 0x98, 0x3d, 0x7b, 0x92, 0x1c, 0x3f, 0x8a};
 
+// Generic method to encode a protobuf
+template <typename T>
+bool encodeProto(const T &msg, const pb_msgdesc_t *fields, uint8_t *outBuf, size_t outBufSize, size_t &outLen)
+{
+    pb_ostream_t stream = pb_ostream_from_buffer(outBuf, outBufSize);
+    if (!pb_encode(&stream, fields, &msg)) {
+        return false;
+    }
+    outLen = stream.bytes_written;
+    return true;
+}
+
+// Generic method to decode a protobuf
+template <typename T> bool decodeProto(T &msg, const pb_msgdesc_t *fields, const uint8_t *inBuf, size_t inLen)
+{
+    pb_istream_t stream = pb_istream_from_buffer(inBuf, inLen);
+    return pb_decode(&stream, fields, &msg);
+}
+
+// Create a PetEnvelope from an already-encoded payload.
+// Signs the payload using the provided private key.
+// publicKey may be null if omitted (e.g., server-signed messages).
+bool createEnvelope(const uint8_t *payload, size_t payloadLen, PetMessageType type,
+                    const uint8_t *signingPrivKey, // 32 bytes
+                    const uint8_t *signerPubKey,   // 65 bytes
+                    uint8_t *outBuf, size_t outBufSize, size_t &outLen)
+{
+    PetEnvelope env = PetEnvelope_init_default;
+    env.version = 1;
+    env.message_type = type;
+
+    // Copy payload
+    if (payloadLen > sizeof(env.payload.bytes))
+        return false;
+    memcpy(env.payload.bytes, payload, payloadLen);
+    env.payload.size = payloadLen;
+
+    // Sign payload
+    size_t sigLen = 64;
+    if (!ecdsa_sign_atomic(signingPrivKey, payload, payloadLen, env.signature.bytes, sigLen)) {
+        return false;
+    }
+    env.signature.size = sigLen;
+
+    memcpy(env.public_key.bytes, signerPubKey, 65);
+    env.public_key.size = 65;
+    // Though technically optional in general, not optional for any enveloped messages this codebase creates.
+
+    // Encode envelope
+    return encodeProto(env, PetEnvelope_fields, outBuf, outBufSize, outLen);
+}
+
+// Verify an incoming envelope and extract the payload.
+// Returns true if signature is valid and payload is copied out.
+bool verifyEnvelope(const PetEnvelope &env,
+                    const uint8_t *serverPubKey, // 65 bytes
+                    uint8_t *outPayload, size_t &outPayloadLen)
+{
+    // Determine which key to use
+    const uint8_t *pubKey = nullptr;
+
+    if (env.public_key.size == 65) {
+        // Pet-signed message
+        pubKey = env.public_key.bytes;
+    } else {
+        // Server-signed message
+        pubKey = serverPubKey;
+    }
+
+    // Verify signature
+    if (!ecdsa_verify_atomic(pubKey, env.payload.bytes, env.payload.size, env.signature.bytes, env.signature.size)) {
+        return false;
+    }
+
+    // Copy payload out
+    if (env.payload.size > outPayloadLen)
+        return false;
+    memcpy(outPayload, env.payload.bytes, env.payload.size);
+    outPayloadLen = env.payload.size;
+
+    return true;
+}
+
+// Decode the inner message after verifying envelope.
+// Caller must pass the correct message type.
+template <typename T> bool decodeVerifiedPayload(const uint8_t *payload, size_t payloadLen, T &msg, const pb_msgdesc_t *fields)
+{
+    return decodeProto(msg, fields, payload, payloadLen);
+}
+
+// Send PetAnnouncement
+bool sendPetAnnouncement(const uint8_t petPriv[32], const uint8_t petPub[65], const uint8_t ownerPub[65], uint8_t *outBuf,
+                         size_t outBufSize, size_t &outLen)
+{
+    PetAnnouncement ann = PetAnnouncement_init_default;
+    ann.version = 1;
+
+    memcpy(ann.pet_public_key.bytes, petPub, 65);
+    ann.pet_public_key.size = 65;
+
+    memcpy(ann.owner_public_key.bytes, ownerPub, 65);
+    ann.owner_public_key.size = 65;
+
+    uint8_t payload[256];
+    size_t payloadLen = sizeof(payload);
+
+    if (!encodeProto(ann, PetAnnouncement_fields, payload, sizeof(payload), payloadLen))
+        return false;
+
+    return createEnvelope(payload, payloadLen, PetMessageType_PET_MESSAGE_TYPE_ANNOUNCEMENT, petPriv, petPub, outBuf, outBufSize,
+                          outLen);
+}
+
+// Send PetAction
+bool sendPetAction(const uint8_t petPriv[32], const uint8_t petPub[65], const PetStatus &status, const PetTimeSignal &ts,
+                   const uint8_t *actionBytes, size_t actionLen, uint64_t nonce,
+                   const PetAnnouncement *otherPet, // optional
+                   uint8_t *outBuf, size_t outBufSize, size_t &outLen)
+{
+    PetAction act = PetAction_init_default;
+    act.version = 1;
+
+    act.time_signal = ts;
+    act.pet_status = status;
+
+    if (actionLen > sizeof(act.action.bytes))
+        return false;
+    memcpy(act.action.bytes, actionBytes, actionLen);
+    act.action.size = actionLen;
+
+    act.nonce = nonce;
+
+    if (otherPet) {
+        act.other_pet = *otherPet;
+    }
+
+    uint8_t payload[256];
+    size_t payloadLen = sizeof(payload);
+
+    if (!encodeProto(act, PetAction_fields, payload, sizeof(payload), payloadLen))
+        return false;
+
+    return createEnvelope(payload, payloadLen, PetMessageType_PET_MESSAGE_TYPE_ACTION, petPriv, petPub, outBuf, outBufSize,
+                          outLen);
+}
+
+// Handle an incoming envelope and decode the inner message.
+// Returns the message type, or PetMessageType_PET_MESSAGE_TYPE_UNKNOWN on failure.
+PetMessageType handleIncomingEnvelope(const uint8_t *buf, size_t len, const uint8_t serverPubKey[65])
+{
+    PetEnvelope env = PetEnvelope_init_default;
+
+    if (!decodeProto(env, PetEnvelope_fields, buf, len))
+        return PetMessageType_PET_MESSAGE_TYPE_UNKNOWN;
+
+    uint8_t payload[256];
+    size_t payloadLen = sizeof(payload);
+
+    if (!verifyEnvelope(env, serverPubKey, payload, payloadLen))
+        return PetMessageType_PET_MESSAGE_TYPE_UNKNOWN;
+
+    return env.message_type;
+}
+
 } // namespace
 
 PetModule *petModule;
@@ -146,15 +310,15 @@ PetModule::PetModule()
     this->notifyObservers(&e);
 }
 
-void handleInit() {}
-void handleHatcheryLoad() {}
-void handleHatcheryMenu() {}
-void handleEggMenu() {}
-void handlePetMenu() {}
-void setScreen(PetScreen newScreen) {}
-void nextSelection() {}
-void prevSelection() {}
-bool hasValidPet()
+void PetModule::handleInit() {}
+void PetModule::handleHatcheryLoad() {}
+void PetModule::handleHatcheryMenu() {}
+void PetModule::handleEggMenu() {}
+void PetModule::handlePetMenu() {}
+void PetModule::setScreen(PetScreen newScreen) {}
+void PetModule::nextSelection() {}
+void PetModule::prevSelection() {}
+bool PetModule::hasValidPet()
 {
     return false;
 }

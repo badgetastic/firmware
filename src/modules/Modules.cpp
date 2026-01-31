@@ -32,6 +32,7 @@
 #endif
 #include "modules/FlagModule.h"
 #include "modules/LogoModule.h"
+#include "modules/PetModule.h"
 #if !MESHTASTIC_EXCLUDE_DETECTIONSENSOR
 #include "modules/DetectionSensorModule.h"
 #endif
@@ -238,6 +239,7 @@ void setupModules()
 #endif
     flagModule = new FlagModule();
     logoModule = new LogoModule();
+    petModule = new PetModule();
 #if ARCH_PORTDUINO
     new HostMetricsModule();
 #endif

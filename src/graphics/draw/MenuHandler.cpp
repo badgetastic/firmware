@@ -19,6 +19,7 @@
 #include "modules/FlagModule.h"
 #include "modules/KeyVerificationModule.h"
 #include "modules/LogoModule.h"
+#include "modules/PetModule.h"
 
 #include "modules/TraceRouteModule.h"
 #include <functional>
