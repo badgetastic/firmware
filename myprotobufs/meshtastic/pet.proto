@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+import "nanopb.proto";
+
+// -----------------------------------------------------------------------------
+// Common types
+// -----------------------------------------------------------------------------
+
+enum PetMessageType {
+    PET_MESSAGE_TYPE_UNKNOWN        = 0;
+    PET_MESSAGE_TYPE_ANNOUNCEMENT   = 1;
+    PET_MESSAGE_TYPE_ACTION         = 2;
+    PET_MESSAGE_TYPE_STATUS         = 3;
+    PET_MESSAGE_TYPE_TIME_SIGNAL    = 4;
+    PET_MESSAGE_TYPE_RECORD         = 5; // not normally enveloped, but reserved
+}
+
+// -----------------------------------------------------------------------------
+// PetEnvelope
+// -----------------------------------------------------------------------------
+// Mandatory wrapper for all signed, public messages.
+// - payload: serialized inner message (PetAnnouncement, PetAction, PetStatus, PetTimeSignal)
+// - signature: raw r||s (64 bytes) over payload
+// - public_key: optional 65-byte uncompressed P-256 public key of signer
+//   * For pet-signed messages: pet public key
+//   * For server-signed messages: may be omitted if server key is known out-of-band
+// -----------------------------------------------------------------------------
+
+message PetEnvelope {
+    uint32 version = 1;
+
+    PetMessageType message_type = 2;
+
+    bytes payload = 3 [(nanopb).max_size = 256];   // adjust as needed
+
+    bytes signature = 4 [
+        (nanopb).max_size = 64
+    ]; // r||s, 32 bytes each
+
+    bytes public_key = 5 [
+        (nanopb).max_size = 65
+    ]; // optional signer public key (uncompressed P-256)
+}
+
+// -----------------------------------------------------------------------------
+// PetAnnouncement
+// -----------------------------------------------------------------------------
+// Public, pet-signed.
+// - Contains the pet's public key and the owner's device public key.
+// - Signed with petPrivateKey, via PetEnvelope.
+// -----------------------------------------------------------------------------
+
+message PetAnnouncement {
+    uint32 version = 1;
+
+    bytes pet_public_key = 2 [
+        (nanopb).max_size = 65
+    ]; // uncompressed P-256
+
+    bytes owner_public_key = 3 [
+        (nanopb).max_size = 65
+    ]; // uncompressed P-256
+}
+
+// -----------------------------------------------------------------------------
+// PetStatus
+// -----------------------------------------------------------------------------
+// Public, server-signed.
+// - Contains the PetAnnouncement, current pet name, and 0–255 "stat" fields.
+// - Signed with petServerPrivateKey, via PetEnvelope.
+// -----------------------------------------------------------------------------
+
+message PetStatus {
+    uint32 version = 1;
+
+    PetAnnouncement pet_announcement = 2;
+
+    string pet_name = 3 [
+        (nanopb).max_size = 32
+    ];
+
+    // All expected to be 0–255; stored as 8-bit ints via nanopb.
+    uint32 sp = 4  [(nanopb).int_size = IS_8];
+    uint32 re = 5  [(nanopb).int_size = IS_8];
+    uint32 ha = 6  [(nanopb).int_size = IS_8];
+    uint32 st = 7  [(nanopb).int_size = IS_8];
+    uint32 sa = 8  [(nanopb).int_size = IS_8];
+    uint32 en = 9  [(nanopb).int_size = IS_8];
+    uint32 jy = 10 [(nanopb).int_size = IS_8];
+    uint32 ey = 11 [(nanopb).int_size = IS_8];
+    uint32 sc = 12 [(nanopb).int_size = IS_8];
+}
+
+// -----------------------------------------------------------------------------
+// PetTimeSignal
+// -----------------------------------------------------------------------------
+// Public, server-signed.
+// - Contains current unix_time_s.
+// - Signed with petServerPrivateKey, via PetEnvelope.
+// -----------------------------------------------------------------------------
+
+message PetTimeSignal {
+    uint32 version = 1;
+
+    uint64 unix_time_s = 2;
+}
+
+// -----------------------------------------------------------------------------
+// PetAction
+// -----------------------------------------------------------------------------
+// Public, pet-signed.
+// - Embeds last seen PetTimeSignal and PetStatus.
+// - Contains opaque action bytes and a nonce.
+// - Optionally references another pet via its PetAnnouncement.
+// - Signed with petPrivateKey, via PetEnvelope.
+// -----------------------------------------------------------------------------
+
+message PetAction {
+    uint32 version = 1;
+
+    PetTimeSignal time_signal = 2;
+
+    PetStatus pet_status = 3;
+
+    // Opaque action payload; interpretation is server-defined.
+    bytes action = 4 [
+        (nanopb).max_size = 64
+    ];
+
+    // Nonce to help prevent replay / duplication.
+    uint64 nonce = 5;
+
+    // Optional other party in the action.
+    PetAnnouncement other_pet = 6;
+}
+
+// -----------------------------------------------------------------------------
+// PetRecord
+// -----------------------------------------------------------------------------
+// Private, local-only.
+// - Not wrapped in PetEnvelope.
+// - Stored in device preferences.
+// - Contains PetStatus (which includes PetAnnouncement and pet_public_key)
+//   and the petPrivateKey.
+// -----------------------------------------------------------------------------
+
+message PetRecord {
+    uint32 version = 1;
+
+    PetStatus pet_status = 2;
+
+    bytes private_key = 3 [
+        (nanopb).max_size = 32
+    ]; // raw 32-byte P-256 private key
+}
