@@ -18,6 +18,8 @@
 #include "pb_decode.h"
 #include "pb_encode.h"
 
+#include <SHA256.h>
+
 #define SCREEN_WIDTH display->getWidth()
 #define SCREEN_HEIGHT display->getHeight()
 
@@ -294,6 +296,40 @@ PetMessageType handleIncomingEnvelope(const uint8_t *buf, size_t len, const uint
     return env.message_type;
 }
 
+const std::array<uint8_t, 30> petNUMSalt = {0x74, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x6e, 0x6f, 0x74,
+                                            0x68, 0x69, 0x6e, 0x67, 0x75, 0x70, 0x6d, 0x79, 0x73, 0x6c,
+                                            0x65, 0x65, 0x76, 0x65, 0x6e, 0x75, 0x6d, 0x62, 0x65, 0x72};
+
+int hashDerivedInt(int exclBound, uint8_t *data, int dataLen)
+{
+    SHA256 hash;
+    uint8_t outputBuf[32];
+    size_t posn;
+    uint8_t size = dataLen;
+    uint8_t inc = 16;
+    hash.reset();
+    for (posn = 0; posn < size; posn += inc) {
+        size_t len = size - posn;
+        if (len > inc)
+            len = inc;
+        hash.update(data + posn, len);
+    }
+    hash.finalize(outputBuf, 32);
+    uint32_t result = 0;
+    for (size_t i = 0; i < 32; i++) {
+        result = ((uint64_t)result * 256 + outputBuf[i]) % exclBound;
+    }
+    return result;
+}
+
+int getSpecies(const uint8_t petPub[65])
+{
+    uint8_t saltBuffer[65 + 30];
+    memcpy(saltBuffer, petPub, 65);
+    memcpy(saltBuffer + 65, petNUMSalt.data(), 30);
+    return hashDerivedInt(5, saltBuffer, 65 + 30);
+}
+
 } // namespace
 
 PetModule *petModule;
@@ -338,7 +374,45 @@ bool PetModule::shouldDraw()
 
 void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
+    /* if (state->frameState == IN_TRANSITION) {
+        display->clear();
+        display->setPixel(2, 2);
+    } else {
+        display->clearPixel(2, 2);
+    } */
+    switch (currentScreen) {
 
-    display->drawXbm(x + (SCREEN_WIDTH - icon_width) / 2, y + (SCREEN_HEIGHT - FONT_HEIGHT_MEDIUM - icon_height) / 2 + 2 + 10,
-                     icon_width, icon_height, icon_bits);
+    case PetScreen::Init:
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_SMALL);
+        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_Init");
+        break;
+
+    case PetScreen::HatcheryLoad:
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_SMALL);
+        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_HatcheryLoad");
+        break;
+
+    case PetScreen::HatcheryMenu:
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_SMALL);
+        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_HatcheryMenu");
+        break;
+
+    case PetScreen::EggMenu:
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_SMALL);
+        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_EggMenu");
+        break;
+
+    case PetScreen::PetMenu:
+        display->setTextAlignment(TEXT_ALIGN_CENTER);
+        display->setFont(FONT_SMALL);
+        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_PetMenu");
+        break;
+    }
+
+    /* display->drawXbm(x + (SCREEN_WIDTH - icon_width) / 2, y + (SCREEN_HEIGHT - FONT_HEIGHT_MEDIUM - icon_height) / 2 + 2 + 10,
+                     icon_width, icon_height, icon_bits); */
 }
