@@ -3,6 +3,7 @@
 #include "PortduinoGlue.h"
 #endif
 #include "PetModule.h"
+#include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include "graphics/images.h"
 #include <OLEDDisplay.h>
@@ -13,6 +14,8 @@
 #include "mbedtls/ecp.h"
 #include "mbedtls/entropy.h"
 #include <Preferences.h>
+
+#include "input/InputBroker.h"
 
 #include "mesh/generated/meshtastic/pet.pb.h"
 #include "pb_decode.h"
@@ -336,7 +339,7 @@ PetModule *petModule;
 
 PetModule::PetModule()
     : SinglePortModule("pet", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Pet"), currentScreen(PetScreen::Init),
-      currentSelection(0)
+      currentSelection(0), active(true)
 {
     LOG_INFO("PetModule is enabled");
     // this->inputObserver.observe(inputBroker);
@@ -344,13 +347,42 @@ PetModule::PetModule()
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
     this->notifyObservers(&e);
+    this->inputObserver.observe(inputBroker);
 }
 
-void PetModule::handleInit() {}
-void PetModule::handleHatcheryLoad() {}
-void PetModule::handleHatcheryMenu() {}
-void PetModule::handleEggMenu() {}
-void PetModule::handlePetMenu() {}
+void PetModule::handleInit()
+{
+    // Check for an existing pet
+    // Validate and load pet
+    // Transition to eggMenu or petMenu
+    // break;
+    // Will only get here if no pet or invalid pet
+    // Initialise storage
+    // Transition to hatcheryLoad
+}
+
+void PetModule::handleHatcheryLoad()
+{
+    // Display "prof" menu
+    // Generate candidates
+    // Allow transition to HatcheryMenu
+}
+
+void PetModule::handleHatcheryMenu()
+{
+    // Allow selection of Egg
+}
+
+void PetModule::handleEggMenu()
+{
+    // Allow selection of petAction
+}
+
+void PetModule::handlePetMenu()
+{
+    // Allow selection of petAction
+}
+
 void PetModule::setScreen(PetScreen newScreen) {}
 void PetModule::nextSelection() {}
 void PetModule::prevSelection() {}
@@ -374,12 +406,7 @@ bool PetModule::shouldDraw()
 
 void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
-    /* if (state->frameState == IN_TRANSITION) {
-        display->clear();
-        display->setPixel(2, 2);
-    } else {
-        display->clearPixel(2, 2);
-    } */
+    active = true;
     switch (currentScreen) {
 
     case PetScreen::Init:
@@ -415,4 +442,24 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
 
     /* display->drawXbm(x + (SCREEN_WIDTH - icon_width) / 2, y + (SCREEN_HEIGHT - FONT_HEIGHT_MEDIUM - icon_height) / 2 + 2 + 10,
                      icon_width, icon_height, icon_bits); */
+}
+
+int PetModule::handleInputEvent(const InputEvent *event)
+{
+    if (active) {
+        if (event->inputEvent == INPUT_BROKER_UP || event->kbchar == '2') {
+            prevSelection();
+        } else if (event->inputEvent == INPUT_BROKER_DOWN || event->kbchar == '8') {
+            nextSelection();
+        } else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
+            screen->showPrevFrame();
+            active = false;
+        } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
+                   event->inputEvent == INPUT_BROKER_USER_PRESS) {
+            screen->showNextFrame();
+            active = false;
+        }
+        // If this module receives a input event, then don't allow it to flow to other listeners.
+    }
+    return 0; // If this module receives a input event, then don't allow it to flow to other listeners.
 }

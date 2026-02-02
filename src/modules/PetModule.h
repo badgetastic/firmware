@@ -1,6 +1,7 @@
 #pragma once
 #if HAS_SCREEN
 #include "ProtobufModule.h"
+#include "input/InputBroker.h"
 #include <Preferences.h>
 
 #include <Arduino.h>
@@ -30,6 +31,9 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     }*/
 
   private:
+    // === Input Observers ===
+    CallbackObserver<PetModule, const InputEvent *> inputObserver =
+        CallbackObserver<PetModule, const InputEvent *>(this, &PetModule::handleInputEvent);
     Preferences prefs;
     enum class PetScreen { Init, HatcheryLoad, HatcheryMenu, EggMenu, PetMenu };
     PetScreen currentScreen;
@@ -45,14 +49,16 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     void nextSelection();
     void prevSelection();
     bool hasValidPet();
+    bool active;
 
   protected:
     virtual int32_t runOnce() override;
 
     virtual bool wantUIFrame() override { return this->shouldDraw(); }
     virtual Observable<const UIFrameEvent *> *getUIFrameObservable() override { return this; }
+    virtual bool interceptingKeyboardInput() { return this->active; }
 
-    // virtual bool interceptingKeyboardInput() override;
+    virtual int handleInputEvent(const InputEvent *event);
 
     virtual void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) override;
 

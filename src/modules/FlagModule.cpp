@@ -3,6 +3,7 @@
 #include "PortduinoGlue.h"
 #endif
 #include "FlagModule.h"
+#include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include <OLEDDisplay.h>
 #include <Throttle.h>
@@ -29,7 +30,9 @@ static unsigned char flag_bits[] = {
 
 FlagModule *flagModule;
 
-FlagModule::FlagModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Flag")
+FlagModule::FlagModule()
+    : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Flag"), active(false), enabled(false),
+      curr_flag(-1)
 {
     flags.setStorage(storage_array);
     // this->loadProtoForModule();
@@ -42,6 +45,10 @@ FlagModule::FlagModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_A
         second[i] ^= third[i % 2];
     }
     LOG_INFO(second);
+    // TODO: Remove
+    flags.push_back("flag{test1}");
+    flags.push_back("flag{test2}");
+    curr_flag = 0;
 
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
@@ -50,12 +57,8 @@ FlagModule::FlagModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_A
 
 int32_t FlagModule::runOnce()
 {
-    if (curr_flag >= 0)
-        curr_flag = (curr_flag + 1) % flags.size();
-    UIFrameEvent e;
-    e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
-    this->notifyObservers(&e);
-    return 5000;
+    this->nextFlag();
+    return 10000;
 }
 
 void FlagModule::addFlag(String newFlag)
@@ -76,7 +79,7 @@ void FlagModule::addFlag(String newFlag)
         if (!exists) {
             flags.push_back(newFlag);
             curr_flag = flags.size() - 1;
-            active = true;
+            this->enabled = true;
             requestFocus();
         }
     }
@@ -123,18 +126,32 @@ void FlagModule::nextFlag()
     }
 }
 
+void FlagModule::prevFlag()
+{
+    if (flags.size() < 1) {
+        curr_flag = -1;
+    } else {
+        if (curr_flag == 0) {
+            curr_flag = flags.size() - 1;
+        } else {
+            curr_flag = (curr_flag - 1) % flags.size();
+        }
+    }
+}
+
 bool FlagModule::shouldDraw()
 {
-    return active;
+    return this->enabled;
 }
 
 void FlagModule::toggle()
 {
-    active = !active;
-    if (active) {
+    this->enabled = !this->enabled;
+    if (this->enabled) {
         LOG_DEBUG("Toggle On");
     } else {
         LOG_DEBUG("Toggle Off");
+        this->active = false;
     }
 
     char first[16] = {0xc0, 0xca, 0xc7, 0xc1, 0xdd, 0xc4, 0x92, 0xc2, 0xc1, 0x95, 0xca, 0xdf, 0xc0, 0x95, 0xdb, 0x00};
@@ -145,7 +162,7 @@ void FlagModule::toggle()
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
     this->notifyObservers(&e);
-    if (active)
+    if (this->enabled)
         requestFocus();
 }
 
@@ -165,7 +182,7 @@ ProcessMessage FlagModule::handleReceived(const meshtastic_MeshPacket &mp)
 
 void FlagModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
-
+    this->active = true;
     display->drawXbm(x + (SCREEN_WIDTH - flag_width) / 2, y + 4, flag_width, flag_height, flag_bits);
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->setFont(FONT_SMALL);
@@ -174,4 +191,25 @@ void FlagModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int1
     } else {
         display->drawString(display->getWidth() / 2 + x, 0 + y + 4 + flag_height, flags.at(curr_flag));
     }
+}
+
+int FlagModule::handleInputEvent(const InputEvent *event)
+{
+    if (this->active && this->enabled) {
+        if (event->inputEvent == INPUT_BROKER_UP || event->kbchar == '2') {
+            prevFlag();
+        } else if (event->inputEvent == INPUT_BROKER_DOWN || event->kbchar == '8') {
+            nextFlag();
+        } else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
+            screen->showPrevFrame();
+            this->active = false;
+        } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
+                   event->inputEvent == INPUT_BROKER_USER_PRESS) {
+            screen->showNextFrame();
+            this->active = false;
+        }
+        // If this module receives a input event, then don't allow it to flow to other listeners.
+        return 1;
+    }
+    return 0;
 }
