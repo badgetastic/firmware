@@ -30,9 +30,7 @@ static unsigned char flag_bits[] = {
 
 FlagModule *flagModule;
 
-FlagModule::FlagModule()
-    : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Flag"), active(false), enabled(false),
-      curr_flag(-1)
+FlagModule::FlagModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Flag")
 {
     flags.setStorage(storage_array);
     // this->loadProtoForModule();
@@ -58,7 +56,7 @@ FlagModule::FlagModule()
 int32_t FlagModule::runOnce()
 {
     this->nextFlag();
-    return 10000;
+    return 15000;
 }
 
 void FlagModule::addFlag(String newFlag)
@@ -147,12 +145,6 @@ bool FlagModule::shouldDraw()
 void FlagModule::toggle()
 {
     this->enabled = !this->enabled;
-    if (this->enabled) {
-        LOG_DEBUG("Toggle On");
-    } else {
-        LOG_DEBUG("Toggle Off");
-        this->active = false;
-    }
 
     char first[16] = {0xc0, 0xca, 0xc7, 0xc1, 0xdd, 0xc4, 0x92, 0xc2, 0xc1, 0x95, 0xca, 0xdf, 0xc0, 0x95, 0xdb, 0x00};
     for (int i = 0; i < 15; i++) {
@@ -182,7 +174,6 @@ ProcessMessage FlagModule::handleReceived(const meshtastic_MeshPacket &mp)
 
 void FlagModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
-    this->active = true;
     display->drawXbm(x + (SCREEN_WIDTH - flag_width) / 2, y + 4, flag_width, flag_height, flag_bits);
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->setFont(FONT_SMALL);
@@ -195,21 +186,20 @@ void FlagModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int1
 
 int FlagModule::handleInputEvent(const InputEvent *event)
 {
-    if (this->active && this->enabled) {
+    MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
+    if (this->enabled && focused == this) {
         if (event->inputEvent == INPUT_BROKER_UP || event->kbchar == '2') {
             prevFlag();
         } else if (event->inputEvent == INPUT_BROKER_DOWN || event->kbchar == '8') {
             nextFlag();
-        } else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
-            screen->showPrevFrame();
-            this->active = false;
-        } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
-                   event->inputEvent == INPUT_BROKER_USER_PRESS) {
-            screen->showNextFrame();
-            this->active = false;
-        }
+        } /* else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
+             screen->showPrevFrame();
+
+         } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
+                    event->inputEvent == INPUT_BROKER_USER_PRESS) {
+             screen->showNextFrame();
+         }*/
         // If this module receives a input event, then don't allow it to flow to other listeners.
-        return 1;
     }
     return 0;
 }

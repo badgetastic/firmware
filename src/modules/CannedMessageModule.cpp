@@ -360,7 +360,7 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     case CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER:
         return handleEmotePickerInput(event);
 
-    case CANNED_MESSAGE_RUN_STATE_INACTIVE:
+    case CANNED_MESSAGE_RUN_STATE_INACTIVE: {
         if (isSelect) {
             return 0; // Main button press no longer runs through powerFSM
         }
@@ -374,17 +374,22 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
             LaunchWithDestination(NODENUM_BROADCAST);
             return 1;
         }
-        // Printable char (ASCII) opens free text compose
-        if (event->kbchar >= 32 && event->kbchar <= 126) {
-            runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
-            requestFocus();
-            UIFrameEvent e;
-            e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
-            notifyObservers(&e);
-            // Immediately process the input in the new state (freetext)
-            return handleFreeTextInput(event);
+        // Don't steal freetext if another module has priority
+        MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
+        if (focused == this || focused == nullptr || !focused->retainsFreetextFocus()) {
+            // Printable char (ASCII) opens free text compose
+            if (event->kbchar >= 32 && event->kbchar <= 126) {
+                runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
+                requestFocus();
+                UIFrameEvent e;
+                e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+                notifyObservers(&e);
+                // Immediately process the input in the new state (freetext)
+                return handleFreeTextInput(event);
+            }
         }
         break;
+    }
 
     // (Other states can be added here as needed)
     default:
