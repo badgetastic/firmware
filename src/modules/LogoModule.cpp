@@ -41,6 +41,7 @@ int LogoModule::handleInputEvent(const InputEvent *event)
     if (event->inputEvent != INPUT_BROKER_NONE) {
         inputIdle = millis();
     }
+    return 0;
 }
 
 bool LogoModule::shouldDraw()
