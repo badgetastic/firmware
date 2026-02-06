@@ -376,6 +376,13 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
         }
         // Don't steal freetext if another module has priority
         MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
+        LOG_INFO("Checking if CannedMessageModule is allowed to have focus");
+        if (focused == this)
+            LOG_INFO("CannedMessageModule is Focused");
+        if (focused == nullptr)
+            LOG_INFO("Nothing is Focused");
+        if (focused != nullptr && focused->retainsFreetextFocus())
+            LOG_INFO("Focused Module Retains Freetext Rights");
         if (focused == this || focused == nullptr || !focused->retainsFreetextFocus()) {
             // Printable char (ASCII) opens free text compose
             if (event->kbchar >= 32 && event->kbchar <= 126) {

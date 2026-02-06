@@ -53,7 +53,7 @@
 #define MPR121_ESC 0x1b
 #define MPR121_BSP 0x08
 #define MPR121_SELECT 0x0d
-#define MPR121_LOCK 0xff
+#define MPR121_LOCK 0xee
 
 #define MPR121_FN_ON 0xf1
 #define MPR121_FN_OFF 0xf2
@@ -76,8 +76,11 @@ unsigned char MPR121_TapMap[12][13] = {{MPR121_BSP},
                                        {'8', 't', 'u', 'v', 'T', 'U', 'V'},
                                        {'9', 'w', 'x', 'y', 'z', 'W', 'X', 'Y', 'Z'}};
 
-unsigned char MPR121_LongPressMap[12] = {MPR121_ESC,  ' ',         MPR121_NONE,  MPR121_NONE, MPR121_UP,   MPR121_NONE,
-                                         MPR121_LEFT, MPR121_LOCK, MPR121_RIGHT, MPR121_NONE, MPR121_DOWN, MPR121_NONE};
+unsigned char MPR121_LongPressMap[12] = {
+    MPR121_ESC,  ' ',         MPR121_SELECT, // Padding this list into a 3x3 grid for easier readability
+    MPR121_NONE, MPR121_UP,   MPR121_NONE,   // Padding this list into a 3x3 grid for easier readability
+    MPR121_LEFT, MPR121_LOCK, MPR121_RIGHT,  // Padding this list into a 3x3 grid for easier readability
+    MPR121_NONE, MPR121_DOWN, MPR121_NONE};  // Padding this list into a 3x3 grid for easier readability
 
 // Translation map from left to right, top to bottom layout to a more convenient layout to manufacture, matching the
 // https://www.amazon.com.au/Capacitive-Sensitive-Sensitivity-Replacement-Traditional/dp/B0CTJD5KW9/ref=pd_ci_mcx_mh_mcx_views_0_title?th=1

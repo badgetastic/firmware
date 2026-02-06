@@ -42,7 +42,7 @@ class FlagModule : public SinglePortModule, public Observable<const UIFrameEvent
 
     virtual bool wantUIFrame() override { return this->shouldDraw(); }
     virtual Observable<const UIFrameEvent *> *getUIFrameObservable() override { return this; }
-    virtual bool interceptingKeyboardInput() { return false; }
+    virtual bool interceptingKeyboardInput();
     virtual bool retainsFreetextFocus() { return true; }
 
     virtual void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) override;

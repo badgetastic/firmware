@@ -1188,7 +1188,7 @@ void Screen::setFrames(FrameFocus focus)
 
 MeshModule *Screen::getFocusedModule()
 {
-    uint8_t idx = framesetInfo.positions.focusedModule;
+    uint8_t idx = ui->getUiState()->currentFrame;
     if (idx < moduleFrames.size())
         return moduleFrames[idx];
     return nullptr;

@@ -35,7 +35,7 @@ FlagModule::FlagModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_A
     flags.setStorage(storage_array);
     // this->loadProtoForModule();
     LOG_INFO("FlagModule is enabled");
-    // this->inputObserver.observe(inputBroker);
+    this->inputObserver.observe(inputBroker);
     char second[20] = {0xfa, 0x63, 0xfd, 0x68, 0xe7, 0x6c, 0xf9, 0x7d, 0xaf, 0x6e,
                        0xf0, 0x50, 0xf7, 0x3e, 0xad, 0x3e, 0xf9, 0x7d, 0xe1, 0x00};
     char third[2] = {0x9c, 0x0f};
@@ -184,22 +184,33 @@ void FlagModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int1
     }
 }
 
+bool FlagModule::interceptingKeyboardInput()
+{
+    MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
+    return (this->enabled && focused == this);
+}
+
 int FlagModule::handleInputEvent(const InputEvent *event)
 {
     MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
     if (this->enabled && focused == this) {
-        if (event->inputEvent == INPUT_BROKER_UP || event->kbchar == '2') {
+        LOG_INFO("FlagInput: %i -> Event %i (Char %c)", event->source, event->inputEvent, event->kbchar);
+        if (event->inputEvent == INPUT_BROKER_UP ||
+            (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("2abcABC", event->kbchar))) {
             prevFlag();
-        } else if (event->inputEvent == INPUT_BROKER_DOWN || event->kbchar == '8') {
+        } else if (event->inputEvent == INPUT_BROKER_DOWN ||
+                   (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("8tuvTUV", event->kbchar))) {
             nextFlag();
-        } /* else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
-             screen->showPrevFrame();
-
-         } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
-                    event->inputEvent == INPUT_BROKER_USER_PRESS) {
-             screen->showNextFrame();
-         }*/
-        // If this module receives a input event, then don't allow it to flow to other listeners.
+        } else if (event->inputEvent == INPUT_BROKER_LEFT ||
+                   (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("4ghiGHI", event->kbchar))) {
+            screen->showPrevFrame();
+        } else if (event->inputEvent == INPUT_BROKER_RIGHT ||
+                   (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("6mnoMNO", event->kbchar)) ||
+                   event->inputEvent == INPUT_BROKER_USER_PRESS) {
+            screen->showNextFrame();
+        }
+        // If this module receives a input event while focused, then don't allow it to flow to other listeners.
+        return 1;
     }
     return 0;
 }

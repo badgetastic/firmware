@@ -13,10 +13,10 @@
 
 LogoModule *logoModule;
 
-LogoModule::LogoModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Logo")
+LogoModule::LogoModule() : SinglePortModule("logo", meshtastic_PortNum_PRIVATE_APP), concurrency::OSThread("Logo")
 {
     LOG_INFO("LogoModule is enabled");
-    // this->inputObserver.observe(inputBroker);
+    this->inputObserver.observe(inputBroker);
 
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
@@ -25,10 +25,22 @@ LogoModule::LogoModule() : SinglePortModule("flag", meshtastic_PortNum_PRIVATE_A
 
 int32_t LogoModule::runOnce()
 {
-    UIFrameEvent e;
-    e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
-    this->notifyObservers(&e);
+    if (firstRun) {
+        UIFrameEvent e;
+        e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
+        this->notifyObservers(&e);
+        firstRun = false;
+    }
+    if ((millis() - inputIdle) > 60000)
+        requestFocus();
     return 5000;
+}
+
+int LogoModule::handleInputEvent(const InputEvent *event)
+{
+    if (event->inputEvent != INPUT_BROKER_NONE) {
+        inputIdle = millis();
+    }
 }
 
 bool LogoModule::shouldDraw()

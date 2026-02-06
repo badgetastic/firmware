@@ -1,6 +1,7 @@
 #pragma once
 #if HAS_SCREEN
 #include "ProtobufModule.h"
+#include "input/InputBroker.h"
 
 class LogoModule : public SinglePortModule, public Observable<const UIFrameEvent *>, private concurrency::OSThread
 {
@@ -32,6 +33,7 @@ class LogoModule : public SinglePortModule, public Observable<const UIFrameEvent
     virtual Observable<const UIFrameEvent *> *getUIFrameObservable() override { return this; }
 
     // virtual bool interceptingKeyboardInput() override;
+    int handleInputEvent(const InputEvent *event);
 
     virtual void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) override;
 
@@ -42,9 +44,12 @@ class LogoModule : public SinglePortModule, public Observable<const UIFrameEvent
 
     // void installDefaultFlagModuleConfig();
 
-    // int currentFlagIndex = -1;
+  private:
+    CallbackObserver<LogoModule, const InputEvent *> inputObserver =
+        CallbackObserver<LogoModule, const InputEvent *>(this, &LogoModule::handleInputEvent);
 
-    // char *messages[];
+    bool firstRun = true;
+    long inputIdle = 0;
 };
 
 extern LogoModule *logoModule;
