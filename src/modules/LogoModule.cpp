@@ -38,6 +38,7 @@ int32_t LogoModule::runOnce()
 
 int LogoModule::handleInputEvent(const InputEvent *event)
 {
+    LOG_DEBUG("Logo Input Handler");
     if (event->inputEvent != INPUT_BROKER_NONE) {
         inputIdle = millis();
     }

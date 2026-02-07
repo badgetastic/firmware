@@ -49,7 +49,7 @@ class LogoModule : public SinglePortModule, public Observable<const UIFrameEvent
         CallbackObserver<LogoModule, const InputEvent *>(this, &LogoModule::handleInputEvent);
 
     bool firstRun = true;
-    long inputIdle = 0;
+    unsigned long inputIdle = 0;
 };
 
 extern LogoModule *logoModule;
