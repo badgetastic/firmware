@@ -508,9 +508,19 @@ void PetModule::handleInit()
 
 void PetModule::handleHatcheryLoad()
 {
-    // Display "prof" menu
-    // Generate candidates
-    // Allow transition to HatcheryMenu
+    if (!keyA) {
+        keyA = ecdsa_generate_keypair_atomic(privOutA, pubOutA);
+        return;
+    }
+    if (!keyB) {
+        keyB = ecdsa_generate_keypair_atomic(privOutB, pubOutB);
+        return;
+    }
+    if (!keyC) {
+        keyC = ecdsa_generate_keypair_atomic(privOutC, pubOutC);
+        return;
+    }
+    currentScreen = PetScreen::HatcheryLoad;
 }
 
 void PetModule::handleHatcheryMenu()
