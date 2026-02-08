@@ -257,11 +257,11 @@ void drawReticule(OLEDDisplay *display, uint32_t center_x, uint32_t center_y, ui
     display->drawLine(center_x + (width / 2), center_y - (height / 2), center_x + (width / 2) - line_x, center_y - (height / 2));
     display->drawLine(center_x + (width / 2), center_y - (height / 2), center_x + (width / 2), center_y - (height / 2) + line_y);
 
-    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2) + line_x, center_y - (height / 2));
-    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2), center_y - (height / 2) - line_y);
+    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2) + line_x, center_y + (height / 2));
+    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2), center_y + (height / 2) - line_y);
 
-    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2) - line_x, center_y - (height / 2));
-    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2), center_y - (height / 2) - line_y);
+    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2) - line_x, center_y + (height / 2));
+    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2), center_y + (height / 2) - line_y);
 }
 
 bool ecdsa_generate_keypair_atomic(uint8_t privOut[32], uint8_t pubOut[65])
