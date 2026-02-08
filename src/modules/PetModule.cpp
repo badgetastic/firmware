@@ -824,7 +824,7 @@ int PetModule::handleInputEvent(const InputEvent *event)
                 nextSelection();
             } else if (event->inputEvent == INPUT_BROKER_USER_PRESS) {
                 screen->showNextFrame();
-            } else if (event->inputEvent == INPUT_BROKER_BACK || event->inputEvent == INPUT_BROKER_CANCEL) {
+            } else if (event->inputEvent == INPUT_BROKER_CANCEL) {
                 screen->showPrevFrame();
             }
         }
