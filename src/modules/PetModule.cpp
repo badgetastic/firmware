@@ -658,8 +658,16 @@ void PetModule::handlePetMenu()
 }
 
 void PetModule::setScreen(PetScreen newScreen) {}
-void PetModule::nextSelection() {}
-void PetModule::prevSelection() {}
+void PetModule::nextSelection()
+{
+    currentSelection += 1;
+    screen->runNow();
+}
+void PetModule::prevSelection()
+{
+    currentSelection -= 1;
+    screen->runNow();
+}
 
 bool PetModule::hasValidPet()
 {
@@ -757,15 +765,15 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
             drawXbmPet(display, SCREEN_WIDTH / 4 * 2, SCREEN_HEIGHT / 2, spB);
         } else {
             drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 2) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
-                           spinner_width, spinner_height, spinner_bits, rot);
+                           spinner_width, spinner_height, spinner_bits, rot + 50);
         }
         if (readyC) {
             drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, spC);
         } else {
             drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 3) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
-                           spinner_width, spinner_height, spinner_bits, rot);
+                           spinner_width, spinner_height, spinner_bits, rot + 120);
         }
-        rot += 360 - 45;
+        rot += 360 - 40;
         rot %= 360;
         screen->runNow();
         break;
@@ -775,7 +783,7 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         drawXbmPet(display, SCREEN_WIDTH / 4 * 1, SCREEN_HEIGHT / 2, spA);
         drawXbmPet(display, SCREEN_WIDTH / 4 * 2, SCREEN_HEIGHT / 2, spB);
         drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, spC);
-        drawReticule(display, SCREEN_WIDTH / 4 * (currentSelection + 1), SCREEN_HEIGHT / 2, 32, 32);
+        drawReticule(display, SCREEN_WIDTH / 4 * ((currentSelection % 3) + 1), SCREEN_HEIGHT / 2, 32, 32);
         break;
 
     case PetScreen::EggMenu:
