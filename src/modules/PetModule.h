@@ -54,7 +54,6 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     bool hasValidPet();
     bool textInput = false;
     bool delayedAction = true;
-    bool active;
     PetRecord myPet;
 
     uint8_t privOutA[32];

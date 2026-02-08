@@ -124,13 +124,23 @@ static unsigned char title_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-#define spinner_width 24
-#define spinner_height 24
-static unsigned char spinner_bits[] = {0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0xc0, 0x3f, 0x00, 0xe0, 0x3f, 0x00, 0xf0, 0x3f, 0x00,
-                                       0xf0, 0x3f, 0x00, 0xf8, 0x1f, 0x00, 0xfc, 0x03, 0x08, 0xfc, 0x01, 0x10, 0xfc, 0x00, 0x30,
-                                       0xfe, 0x00, 0x30, 0x7e, 0x00, 0x30, 0x7e, 0x00, 0x30, 0x7e, 0x00, 0x78, 0x7e, 0x00, 0x38,
-                                       0xfc, 0x00, 0x3c, 0xfc, 0x00, 0x3e, 0xf8, 0x87, 0x1f, 0xf8, 0xff, 0x1f, 0xf0, 0xff, 0x0f,
-                                       0xc0, 0xff, 0x07, 0x00, 0xff, 0x03, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00};
+#define spinner_width 48
+#define spinner_height 48
+static unsigned char spinner_bits[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0xfc, 0x03, 0x00, 0x00, 0x00, 0x00, 0xfe, 0x03, 0x00, 0x00, 0x00, 0x00, 0xff, 0x03, 0x00, 0x00, 0x00, 0x00, 0xff,
+    0x03, 0x00, 0x00, 0x00, 0x80, 0xff, 0x01, 0x00, 0x00, 0x00, 0xc0, 0x3f, 0x80, 0x00, 0x00, 0x00, 0xc0, 0x1f, 0x00, 0x01, 0x00,
+    0x00, 0xc0, 0x0f, 0x00, 0x03, 0x00, 0x00, 0xe0, 0x0f, 0x00, 0x03, 0x00, 0x00, 0xe0, 0x07, 0x00, 0x03, 0x00, 0x00, 0xe0, 0x07,
+    0x00, 0x03, 0x00, 0x00, 0xe0, 0x07, 0x80, 0x07, 0x00, 0x00, 0xe0, 0x07, 0x80, 0x03, 0x00, 0x00, 0xc0, 0x0f, 0xc0, 0x03, 0x00,
+    0x00, 0xc0, 0x0f, 0xe0, 0x03, 0x00, 0x00, 0x80, 0x7f, 0xf8, 0x01, 0x00, 0x00, 0x80, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00, 0xff,
+    0xff, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x7f, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 namespace
 {
@@ -234,6 +244,24 @@ void drawXbmRotSkew(int16_t xMove, int16_t yMove, int16_t width, int16_t height,
             }
         }
     }
+}
+
+void drawReticule(OLEDDisplay *display, uint32_t center_x, uint32_t center_y, uint32_t width, uint32_t height)
+{
+    int line_x = width / 4;
+    int line_y = height / 4;
+
+    display->drawLine(center_x - (width / 2), center_y - (height / 2), center_x - (width / 2) + line_x, center_y - (height / 2));
+    display->drawLine(center_x - (width / 2), center_y - (height / 2), center_x - (width / 2), center_y - (height / 2) + line_y);
+
+    display->drawLine(center_x + (width / 2), center_y - (height / 2), center_x + (width / 2) - line_x, center_y - (height / 2));
+    display->drawLine(center_x + (width / 2), center_y - (height / 2), center_x + (width / 2), center_y - (height / 2) + line_y);
+
+    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2) + line_x, center_y - (height / 2));
+    display->drawLine(center_x - (width / 2), center_y + (height / 2), center_x - (width / 2), center_y - (height / 2) - line_y);
+
+    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2) - line_x, center_y - (height / 2));
+    display->drawLine(center_x + (width / 2), center_y + (height / 2), center_x + (width / 2), center_y - (height / 2) - line_y);
 }
 
 bool ecdsa_generate_keypair_atomic(uint8_t privOut[32], uint8_t pubOut[65])
@@ -547,7 +575,7 @@ PetModule *petModule;
 
 PetModule::PetModule()
     : SinglePortModule("pet", meshtastic_PortNum_STA_PET), concurrency::OSThread("Pet"), currentScreen(PetScreen::Init),
-      currentSelection(0), active(true)
+      currentSelection(0)
 {
     LOG_INFO("PetModule is enabled");
     // this->inputObserver.observe(inputBroker);
@@ -560,41 +588,9 @@ PetModule::PetModule()
 
 void PetModule::handleInit()
 {
-    uint8_t stored[256];
-    int stored_len = prefs.getBytes("pet", stored, 256);
-
-    if (stored_len == 0) {
-        LOG_DEBUG("No Pet Stored");
-        currentScreen = PetScreen::HatcheryLoad;
-        return;
-    }
-
-    if (!decodeProto(myPet, PetRecord_fields, stored, stored_len)) {
-        LOG_DEBUG("Couldn't Decode Pet");
-        currentScreen = PetScreen::HatcheryLoad;
-        return;
-    }
-
-    if (!(myPet.has_pet_status)) {
-        LOG_DEBUG("Missing PetStatus");
-        currentScreen = PetScreen::HatcheryLoad;
-        return;
-    }
-
-    if (!(myPet.has_pet_status && myPet.pet_status.has_pet_announcement)) {
-        LOG_DEBUG("Missing PetAnnouncement");
-        currentScreen = PetScreen::HatcheryLoad;
-        return;
-    }
-
-    uint8_t testsig[128];
-    size_t testsig_len = 0;
-    const char *testmsg = "testmsg";
-    size_t testmsg_len = 7;
-    if (!(ecdsa_sign_atomic(myPet.private_key.bytes, (const uint8_t *)testmsg, testmsg_len, testsig, testsig_len) &&
-          ecdsa_verify_atomic(myPet.pet_status.pet_announcement.pet_public_key.bytes, (const uint8_t *)testmsg, testmsg_len,
-                              testsig, testsig_len))) {
-        LOG_DEBUG("Couldn't Match Keys");
+    textInput = false;
+    if (!hasValidPet()) {
+        LOG_DEBUG("Invalid or Missing Pet");
         currentScreen = PetScreen::HatcheryLoad;
         return;
     }
@@ -618,6 +614,8 @@ void PetModule::handleInit()
 
 void PetModule::handleHatcheryLoad()
 {
+    textInput = false;
+    delayedAction = true;
     if (!readyA) {
         readyA = ecdsa_generate_keypair_atomic(privOutA, pubOutA);
         spA = getSpecies(pubOutA);
@@ -633,32 +631,72 @@ void PetModule::handleHatcheryLoad()
         spC = getSpecies(pubOutC);
         return;
     }
-    currentScreen = PetScreen::HatcheryLoad;
+    currentScreen = PetScreen::HatcheryMenu;
 }
 
 void PetModule::handleHatcheryMenu()
 {
+    textInput = false;
     // Allow selection of Egg
 }
 
-void PetModule::handleNameEntry() {}
+void PetModule::handleNameEntry()
+{
+    textInput = true;
+}
 
 void PetModule::handleEggMenu()
 {
+    textInput = false;
     // Allow selection of petAction
 }
 
 void PetModule::handlePetMenu()
 {
+    textInput = false;
     // Allow selection of petAction
 }
 
 void PetModule::setScreen(PetScreen newScreen) {}
 void PetModule::nextSelection() {}
 void PetModule::prevSelection() {}
+
 bool PetModule::hasValidPet()
 {
-    return false;
+    uint8_t stored[256];
+    int stored_len = prefs.getBytes("pet", stored, 256);
+
+    if (stored_len == 0) {
+        LOG_DEBUG("No Pet Stored");
+        return false;
+    }
+
+    if (!decodeProto(myPet, PetRecord_fields, stored, stored_len)) {
+        LOG_DEBUG("Couldn't Decode Pet");
+        return false;
+    }
+
+    if (!(myPet.has_pet_status)) {
+        LOG_DEBUG("Missing PetStatus");
+        return false;
+    }
+
+    if (!(myPet.has_pet_status && myPet.pet_status.has_pet_announcement)) {
+        LOG_DEBUG("Missing PetAnnouncement");
+        return false;
+    }
+
+    uint8_t testsig[128];
+    size_t testsig_len = 0;
+    const char *testmsg = "testmsg";
+    size_t testmsg_len = 7;
+    if (!(ecdsa_sign_atomic(myPet.private_key.bytes, (const uint8_t *)testmsg, testmsg_len, testsig, testsig_len) &&
+          ecdsa_verify_atomic(myPet.pet_status.pet_announcement.pet_public_key.bytes, (const uint8_t *)testmsg, testmsg_len,
+                              testsig, testsig_len))) {
+        return false;
+    }
+
+    return true;
 }
 
 int32_t PetModule::runOnce()
@@ -700,7 +738,6 @@ bool PetModule::shouldDraw()
 
 void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
-    active = true;
     switch (currentScreen) {
 
     case PetScreen::Init:
@@ -708,34 +745,37 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
                          title_bits);
         break;
 
-    case PetScreen::HatcheryMenu:
-        // Display the Menu specific elements
-        display->setTextAlignment(TEXT_ALIGN_CENTER);
-        display->setFont(FONT_SMALL);
-        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_HatcheryMenu");
     case PetScreen::HatcheryLoad:
         // Display the Load and Menu elements
         if (readyA) {
             drawXbmPet(display, SCREEN_WIDTH / 4 * 1, SCREEN_HEIGHT / 2, spA);
         } else {
             drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 1) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
-                           spinner_width, spinner_height, title_bits, rot);
+                           spinner_width, spinner_height, spinner_bits, rot);
         }
         if (readyB) {
             drawXbmPet(display, SCREEN_WIDTH / 4 * 2, SCREEN_HEIGHT / 2, spB);
         } else {
             drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 2) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
-                           spinner_width, spinner_height, title_bits, rot);
+                           spinner_width, spinner_height, spinner_bits, rot);
         }
         if (readyC) {
             drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, spC);
         } else {
             drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 3) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
-                           spinner_width, spinner_height, title_bits, rot);
+                           spinner_width, spinner_height, spinner_bits, rot);
         }
-        rot += 15;
+        rot += 360 - 45;
         rot %= 360;
         screen->runNow();
+        break;
+
+    case PetScreen::HatcheryMenu:
+        // Display the Load and Menu elements
+        drawXbmPet(display, SCREEN_WIDTH / 4 * 1, SCREEN_HEIGHT / 2, spA);
+        drawXbmPet(display, SCREEN_WIDTH / 4 * 2, SCREEN_HEIGHT / 2, spB);
+        drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, spC);
+        drawReticule(display, SCREEN_WIDTH / 4 * (currentSelection + 1), SCREEN_HEIGHT / 2, 32, 32);
         break;
 
     case PetScreen::EggMenu:
@@ -757,20 +797,31 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
 
 int PetModule::handleInputEvent(const InputEvent *event)
 {
-    if (active) {
-        if (event->inputEvent == INPUT_BROKER_UP || event->kbchar == '2') {
-            prevSelection();
-        } else if (event->inputEvent == INPUT_BROKER_DOWN || event->kbchar == '8') {
-            nextSelection();
-        } else if (event->inputEvent == INPUT_BROKER_LEFT || event->kbchar == '4') {
-            screen->showPrevFrame();
-            active = false;
-        } else if (event->inputEvent == INPUT_BROKER_RIGHT || event->kbchar == '6' ||
-                   event->inputEvent == INPUT_BROKER_USER_PRESS) {
-            screen->showNextFrame();
-            active = false;
+    if (interceptingKeyboardInput()) {
+        LOG_DEBUG("FlagInput: %i -> Event %i (Char %c)", event->source, event->inputEvent, event->kbchar);
+        if (textInput) {
+            LOG_DEBUG("TODO: Pet Textmode");
+        } else {
+            if (event->inputEvent == INPUT_BROKER_UP ||
+                (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("2abcABC", event->kbchar))) {
+                prevSelection();
+            } else if (event->inputEvent == INPUT_BROKER_DOWN ||
+                       (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("8tuvTUV", event->kbchar))) {
+                nextSelection();
+            } else if (event->inputEvent == INPUT_BROKER_LEFT ||
+                       (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("4ghiGHI", event->kbchar))) {
+                prevSelection();
+            } else if (event->inputEvent == INPUT_BROKER_RIGHT ||
+                       (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("6mnoMNO", event->kbchar))) {
+                nextSelection();
+            } else if (event->inputEvent == INPUT_BROKER_USER_PRESS) {
+                screen->showNextFrame();
+            } else if (event->inputEvent == INPUT_BROKER_BACK || event->inputEvent == INPUT_BROKER_CANCEL) {
+                screen->showPrevFrame();
+            }
         }
         // If this module receives a input event, then don't allow it to flow to other listeners.
+        return 1;
     }
     return 0; // If this module receives a input event, then don't allow it to flow to other listeners.
 }

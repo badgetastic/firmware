@@ -38,7 +38,7 @@ class FlagModule : public SinglePortModule, public Observable<const UIFrameEvent
   protected:
     virtual int32_t runOnce() override;
     int handleInputEvent(const InputEvent *event);
-    int handleUIFrameEvent(const UIFrameEvent *event);
+    // int handleUIFrameEvent(const UIFrameEvent *event);
 
     virtual bool wantUIFrame() override { return this->shouldDraw(); }
     virtual Observable<const UIFrameEvent *> *getUIFrameObservable() override { return this; }
