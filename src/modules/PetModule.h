@@ -60,12 +60,17 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     uint8_t privOutA[32];
     uint8_t pubOutA[65];
     bool readyA = false;
+    uint8_t spA = 0;
     uint8_t privOutB[32];
     uint8_t pubOutB[65];
     bool readyB = false;
+    uint8_t spB = 0;
     uint8_t privOutC[32];
     uint8_t pubOutC[65];
     bool readyC = false;
+    uint8_t spC = 0;
+
+    uint32_t rot = 0;
 
   protected:
     virtual int32_t runOnce() override;

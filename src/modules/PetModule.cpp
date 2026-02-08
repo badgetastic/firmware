@@ -124,8 +124,118 @@ static unsigned char title_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
+#define spinner_width 24
+#define spinner_height 24
+static unsigned char spinner_bits[] = {0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0xc0, 0x3f, 0x00, 0xe0, 0x3f, 0x00, 0xf0, 0x3f, 0x00,
+                                       0xf0, 0x3f, 0x00, 0xf8, 0x1f, 0x00, 0xfc, 0x03, 0x08, 0xfc, 0x01, 0x10, 0xfc, 0x00, 0x30,
+                                       0xfe, 0x00, 0x30, 0x7e, 0x00, 0x30, 0x7e, 0x00, 0x30, 0x7e, 0x00, 0x78, 0x7e, 0x00, 0x38,
+                                       0xfc, 0x00, 0x3c, 0xfc, 0x00, 0x3e, 0xf8, 0x87, 0x1f, 0xf8, 0xff, 0x1f, 0xf0, 0xff, 0x0f,
+                                       0xc0, 0xff, 0x07, 0x00, 0xff, 0x03, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00};
+
 namespace
 {
+void drawXbmPet(OLEDDisplay *display, int16_t center_x, int16_t center_y, uint8_t petSP)
+{
+    switch (petSP) {
+    case 0:
+        display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        break;
+    case 1:
+        display->drawXbm(center_x - (egg2_width / 2), center_y - (egg2_height / 2), egg2_width, egg2_height, egg2_bits);
+        break;
+    case 2:
+        display->drawXbm(center_x - (egg3_width / 2), center_y - (egg3_height / 2), egg3_width, egg3_height, egg3_bits);
+        break;
+    case 3:
+        display->drawXbm(center_x - (egg4_width / 2), center_y - (egg4_height / 2), egg4_width, egg4_height, egg4_bits);
+        break;
+    case 4:
+        display->drawXbm(center_x - (egg5_width / 2), center_y - (egg5_height / 2), egg5_width, egg5_height, egg5_bits);
+        break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+        // case 0:
+        //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
+        //     break;
+    }
+}
+
+void drawXbmRotSkew(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const uint8_t *xbm, int16_t degrees)
+{
+    OLEDDisplay *display = screen->getDisplayDevice();
+    // Fixed‑point scale factor
+    const int16_t FP = 256;
+
+    // Convert angle to radians (integer-friendly)
+    float rad = degrees * 0.01745329251f;
+
+    // Compute shear factors in fixed‑point
+    int16_t k1 = (int16_t)(-tan(rad * 0.5f) * FP);
+    int16_t k2 = (int16_t)(sin(rad) * FP);
+
+    // Center of image
+    int16_t cx = width / 2;
+    int16_t cy = height / 2;
+
+    int16_t widthInXbm = (width + 7) / 8;
+
+    for (int16_t y = 0; y < height; y++) {
+        for (int16_t x = 0; x < width; x++) {
+
+            // Translate to center
+            int16_t dx = x - cx;
+            int16_t dy = y - cy;
+
+            // --- 1st shear (X) ---
+            int16_t sx1 = dx + ((k1 * dy) >> 8);
+            int16_t sy1 = dy;
+
+            // --- 2nd shear (Y) ---
+            int16_t sx2 = sx1;
+            int16_t sy2 = sy1 + ((k2 * sx1) >> 8);
+
+            // --- 3rd shear (X) ---
+            int16_t sx3 = sx2 + ((k1 * sy2) >> 8);
+            int16_t sy3 = sy2;
+
+            // Translate back
+            int16_t srcX = sx3 + cx;
+            int16_t srcY = sy3 + cy;
+
+            // Wrap around
+            if (srcX < 0)
+                srcX += width;
+            if (srcX >= width)
+                srcX -= width;
+            if (srcY < 0)
+                srcY += height;
+            if (srcY >= height)
+                srcY -= height;
+
+            // Read bit
+            int16_t byteIndex = (srcX >> 3) + srcY * widthInXbm;
+            uint8_t data = pgm_read_byte(xbm + byteIndex);
+
+            if (data & (1 << (srcX & 7))) {
+                display->setPixel(xMove + x, yMove + y);
+            }
+        }
+    }
+}
+
 bool ecdsa_generate_keypair_atomic(uint8_t privOut[32], uint8_t pubOut[65])
 {
     mbedtls_ecdsa_context ctx;
@@ -508,16 +618,19 @@ void PetModule::handleInit()
 
 void PetModule::handleHatcheryLoad()
 {
-    if (!keyA) {
-        keyA = ecdsa_generate_keypair_atomic(privOutA, pubOutA);
+    if (!readyA) {
+        readyA = ecdsa_generate_keypair_atomic(privOutA, pubOutA);
+        spA = getSpecies(pubOutA);
         return;
     }
-    if (!keyB) {
-        keyB = ecdsa_generate_keypair_atomic(privOutB, pubOutB);
+    if (!readyB) {
+        readyB = ecdsa_generate_keypair_atomic(privOutB, pubOutB);
+        spB = getSpecies(pubOutB);
         return;
     }
-    if (!keyC) {
-        keyC = ecdsa_generate_keypair_atomic(privOutC, pubOutC);
+    if (!readyC) {
+        readyC = ecdsa_generate_keypair_atomic(privOutC, pubOutC);
+        spC = getSpecies(pubOutC);
         return;
     }
     currentScreen = PetScreen::HatcheryLoad;
@@ -595,16 +708,34 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
                          title_bits);
         break;
 
-    case PetScreen::HatcheryLoad:
-        display->setTextAlignment(TEXT_ALIGN_CENTER);
-        display->setFont(FONT_SMALL);
-        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_HatcheryLoad");
-        break;
-
     case PetScreen::HatcheryMenu:
+        // Display the Menu specific elements
         display->setTextAlignment(TEXT_ALIGN_CENTER);
         display->setFont(FONT_SMALL);
         display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_HatcheryMenu");
+    case PetScreen::HatcheryLoad:
+        // Display the Load and Menu elements
+        if (readyA) {
+            drawXbmPet(display, SCREEN_WIDTH / 4 * 1, SCREEN_HEIGHT / 2, spA);
+        } else {
+            drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 1) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
+                           spinner_width, spinner_height, title_bits, rot);
+        }
+        if (readyB) {
+            drawXbmPet(display, SCREEN_WIDTH / 4 * 2, SCREEN_HEIGHT / 2, spB);
+        } else {
+            drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 2) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
+                           spinner_width, spinner_height, title_bits, rot);
+        }
+        if (readyC) {
+            drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, spC);
+        } else {
+            drawXbmRotSkew(x + ((SCREEN_WIDTH / 4) * 3) - (spinner_width / 2), y + (SCREEN_HEIGHT / 4) - (spinner_height / 2),
+                           spinner_width, spinner_height, title_bits, rot);
+        }
+        rot += 15;
+        rot %= 360;
+        screen->runNow();
         break;
 
     case PetScreen::EggMenu:
