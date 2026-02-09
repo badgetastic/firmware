@@ -709,6 +709,48 @@ bool PetModule::hasValidPet()
     return true;
 }
 
+void PetModule::handleSelectEgg()
+{
+    myPet = PetRecord_init_default;
+    myPet.has_pet_status = true;
+    myPet.pet_status.has_pet_announcement = true;
+    switch (currentSelection % 3) {
+    case 0:
+        memcpy(myPet.private_key.bytes, privOutA, sizeof(privOutA));
+        myPet.private_key.size = sizeof(privOutA);
+        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutA, sizeof(pubOutA));
+        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutA);
+        break;
+    case 1:
+        memcpy(myPet.private_key.bytes, privOutB, sizeof(privOutB));
+        myPet.private_key.size = sizeof(privOutB);
+        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutB, sizeof(pubOutB));
+        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutB);
+        break;
+    case 2:
+        memcpy(myPet.private_key.bytes, privOutC, sizeof(privOutC));
+        myPet.private_key.size = sizeof(privOutC);
+        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutC, sizeof(pubOutC));
+        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutC);
+        break;
+    }
+    memcpy(myPet.pet_status.pet_announcement.owner_public_key.bytes, owner.public_key.bytes, owner.public_key.size);
+    myPet.pet_status.pet_announcement.owner_public_key.size = owner.public_key.size;
+    uint8_t announce_buffer[512];
+    size_t announce_len;
+    if (!sendPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
+                             myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512, announce_len)) {
+        return;
+    }
+    meshtastic_MeshPacket *p = allocDataPacket(); // Automagic Pet port binding
+    // Not setting "to", Broadcast.
+    // Not setting "channel", Primary
+    p->want_ack = false;
+    memcpy(p->decoded.payload.bytes, announce_buffer, announce_len);
+    p->decoded.payload.size = announce_len;
+    service->sendToMesh(p, RX_SRC_LOCAL, true);
+}
+
 int32_t PetModule::runOnce()
 {
     if (delayedAction) {
@@ -827,46 +869,7 @@ int PetModule::handleInputEvent(const InputEvent *event)
             } else if (event->inputEvent == INPUT_BROKER_SELECT) {
                 switch (currentScreen) {
                 case PetScreen::HatcheryMenu:
-                    myPet = PetRecord_init_default;
-                    myPet.has_pet_status = true;
-                    myPet.pet_status.has_pet_announcement = true;
-                    switch (currentSelection % 3) {
-                    case 0:
-                        memcpy(myPet.private_key.bytes, privOutA, sizeof(privOutA));
-                        myPet.private_key.size = sizeof(privOutA);
-                        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutA, sizeof(pubOutA));
-                        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutA);
-                        break;
-                    case 1:
-                        memcpy(myPet.private_key.bytes, privOutB, sizeof(privOutB));
-                        myPet.private_key.size = sizeof(privOutB);
-                        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutB, sizeof(pubOutB));
-                        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutB);
-                        break;
-                    case 2:
-                        memcpy(myPet.private_key.bytes, privOutC, sizeof(privOutC));
-                        myPet.private_key.size = sizeof(privOutC);
-                        memcpy(myPet.pet_status.pet_announcement.pet_public_key.bytes, pubOutC, sizeof(pubOutC));
-                        myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutC);
-                        break;
-                    }
-                    memcpy(myPet.pet_status.pet_announcement.owner_public_key.bytes, owner.public_key.bytes,
-                           owner.public_key.size);
-                    myPet.pet_status.pet_announcement.owner_public_key.size = owner.public_key.size;
-                    uint8_t announce_buffer[512];
-                    size_t announce_len;
-                    if (!sendPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
-                                             myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512,
-                                             announce_len)) {
-                        return 1;
-                    }
-                    meshtastic_MeshPacket *p = allocDataPacket(); // Automagic Pet port binding
-                    // Not setting "to", Broadcast.
-                    // Not setting "channel", Primary
-                    p->want_ack = false;
-                    memcpy(p->decoded.payload.bytes, announce_buffer, announce_len);
-                    p->decoded.payload.size = announce_len;
-                    service->sendToMesh(p, RX_SRC_LOCAL, true);
+                    handleSelectEgg();
                     break;
                 default:
                     break;

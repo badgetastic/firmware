@@ -46,6 +46,7 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     void handleNameEntry();
     void handleEggMenu();
     void handlePetMenu();
+    void handleSelectEgg();
 
     void setScreen(PetScreen newScreen);
     void firstSelection();
