@@ -1001,6 +1001,8 @@ void CannedMessageModule::sendText(NodeNum dest, ChannelIndex channel, const cha
 
     // Send to mesh and phone (even if no phone connected, to track ACKs)
     service->sendToMesh(p, RX_SRC_LOCAL, true);
+
+    // TODO UPDATE FLAG
     for (int i = 0; i < 5; i++) {
         challenge[i] += 0x03;
     }
