@@ -12,7 +12,7 @@ PB_BIND(PetEnvelope, PetEnvelope, 2)
 PB_BIND(PetAnnouncement, PetAnnouncement, AUTO)
 
 
-PB_BIND(PetStatus, PetStatus, AUTO)
+PB_BIND(PetStatus, PetStatus, 2)
 
 
 PB_BIND(PetTimeSignal, PetTimeSignal, AUTO)

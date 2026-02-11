@@ -75,20 +75,24 @@ message PetStatus {
 
     PetAnnouncement pet_announcement = 2;
 
-    string pet_name = 3 [
+    bytes server_sig = 3 [
+        (nanopb).max_size = 64
+    ]; // r||s, 32 bytes each
+
+    string pet_name = 4 [
         (nanopb).max_size = 32
     ];
 
     // All expected to be 0–255; stored as 8-bit ints via nanopb.
-    uint32 sp = 4  [(nanopb).int_size = IS_8];
-    uint32 re = 5  [(nanopb).int_size = IS_8];
-    uint32 ha = 6  [(nanopb).int_size = IS_8];
-    uint32 st = 7  [(nanopb).int_size = IS_8];
-    uint32 sa = 8  [(nanopb).int_size = IS_8];
-    uint32 en = 9  [(nanopb).int_size = IS_8];
-    uint32 jy = 10 [(nanopb).int_size = IS_8];
-    uint32 ey = 11 [(nanopb).int_size = IS_8];
-    uint32 sc = 12 [(nanopb).int_size = IS_8];
+    uint32 sp = 5  [(nanopb).int_size = IS_8];
+    uint32 re = 6  [(nanopb).int_size = IS_8];
+    uint32 ha = 7  [(nanopb).int_size = IS_8];
+    uint32 st = 8  [(nanopb).int_size = IS_8];
+    uint32 sa = 9  [(nanopb).int_size = IS_8];
+    uint32 en = 10  [(nanopb).int_size = IS_8];
+    uint32 jy = 11 [(nanopb).int_size = IS_8];
+    uint32 ey = 12 [(nanopb).int_size = IS_8];
+    uint32 sc = 13 [(nanopb).int_size = IS_8];
 }
 
 // -----------------------------------------------------------------------------

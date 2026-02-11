@@ -39,10 +39,12 @@ typedef struct _PetAnnouncement {
     PetAnnouncement_owner_public_key_t owner_public_key; /* uncompressed P-256 */
 } PetAnnouncement;
 
+typedef PB_BYTES_ARRAY_T(64) PetStatus_server_sig_t;
 typedef struct _PetStatus {
     uint32_t version;
     bool has_pet_announcement;
     PetAnnouncement pet_announcement;
+    PetStatus_server_sig_t server_sig; /* r||s, 32 bytes each */
     char pet_name[32];
     /* All expected to be 0–255; stored as 8-bit ints via nanopb. */
     uint8_t sp;
@@ -106,13 +108,13 @@ extern "C" {
 /* Initializer values for message structs */
 #define PetEnvelope_init_default                 {0, _PetMessageType_MIN, {0, {0}}, {0, {0}}, {0, {0}}}
 #define PetAnnouncement_init_default             {0, {0, {0}}, {0, {0}}}
-#define PetStatus_init_default                   {0, false, PetAnnouncement_init_default, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define PetStatus_init_default                   {0, false, PetAnnouncement_init_default, {0, {0}}, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define PetTimeSignal_init_default               {0, 0}
 #define PetAction_init_default                   {0, false, PetTimeSignal_init_default, false, PetStatus_init_default, {0, {0}}, 0, false, PetAnnouncement_init_default}
 #define PetRecord_init_default                   {0, false, PetStatus_init_default, {0, {0}}}
 #define PetEnvelope_init_zero                    {0, _PetMessageType_MIN, {0, {0}}, {0, {0}}, {0, {0}}}
 #define PetAnnouncement_init_zero                {0, {0, {0}}, {0, {0}}}
-#define PetStatus_init_zero                      {0, false, PetAnnouncement_init_zero, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define PetStatus_init_zero                      {0, false, PetAnnouncement_init_zero, {0, {0}}, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define PetTimeSignal_init_zero                  {0, 0}
 #define PetAction_init_zero                      {0, false, PetTimeSignal_init_zero, false, PetStatus_init_zero, {0, {0}}, 0, false, PetAnnouncement_init_zero}
 #define PetRecord_init_zero                      {0, false, PetStatus_init_zero, {0, {0}}}
@@ -128,16 +130,17 @@ extern "C" {
 #define PetAnnouncement_owner_public_key_tag     3
 #define PetStatus_version_tag                    1
 #define PetStatus_pet_announcement_tag           2
-#define PetStatus_pet_name_tag                   3
-#define PetStatus_sp_tag                         4
-#define PetStatus_re_tag                         5
-#define PetStatus_ha_tag                         6
-#define PetStatus_st_tag                         7
-#define PetStatus_sa_tag                         8
-#define PetStatus_en_tag                         9
-#define PetStatus_jy_tag                         10
-#define PetStatus_ey_tag                         11
-#define PetStatus_sc_tag                         12
+#define PetStatus_server_sig_tag                 3
+#define PetStatus_pet_name_tag                   4
+#define PetStatus_sp_tag                         5
+#define PetStatus_re_tag                         6
+#define PetStatus_ha_tag                         7
+#define PetStatus_st_tag                         8
+#define PetStatus_sa_tag                         9
+#define PetStatus_en_tag                         10
+#define PetStatus_jy_tag                         11
+#define PetStatus_ey_tag                         12
+#define PetStatus_sc_tag                         13
 #define PetTimeSignal_version_tag                1
 #define PetTimeSignal_unix_time_s_tag            2
 #define PetAction_version_tag                    1
@@ -170,16 +173,17 @@ X(a, STATIC,   SINGULAR, BYTES,    owner_public_key,   3)
 #define PetStatus_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   version,           1) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  pet_announcement,   2) \
-X(a, STATIC,   SINGULAR, STRING,   pet_name,          3) \
-X(a, STATIC,   SINGULAR, UINT32,   sp,                4) \
-X(a, STATIC,   SINGULAR, UINT32,   re,                5) \
-X(a, STATIC,   SINGULAR, UINT32,   ha,                6) \
-X(a, STATIC,   SINGULAR, UINT32,   st,                7) \
-X(a, STATIC,   SINGULAR, UINT32,   sa,                8) \
-X(a, STATIC,   SINGULAR, UINT32,   en,                9) \
-X(a, STATIC,   SINGULAR, UINT32,   jy,               10) \
-X(a, STATIC,   SINGULAR, UINT32,   ey,               11) \
-X(a, STATIC,   SINGULAR, UINT32,   sc,               12)
+X(a, STATIC,   SINGULAR, BYTES,    server_sig,        3) \
+X(a, STATIC,   SINGULAR, STRING,   pet_name,          4) \
+X(a, STATIC,   SINGULAR, UINT32,   sp,                5) \
+X(a, STATIC,   SINGULAR, UINT32,   re,                6) \
+X(a, STATIC,   SINGULAR, UINT32,   ha,                7) \
+X(a, STATIC,   SINGULAR, UINT32,   st,                8) \
+X(a, STATIC,   SINGULAR, UINT32,   sa,                9) \
+X(a, STATIC,   SINGULAR, UINT32,   en,               10) \
+X(a, STATIC,   SINGULAR, UINT32,   jy,               11) \
+X(a, STATIC,   SINGULAR, UINT32,   ey,               12) \
+X(a, STATIC,   SINGULAR, UINT32,   sc,               13)
 #define PetStatus_CALLBACK NULL
 #define PetStatus_DEFAULT NULL
 #define PetStatus_pet_announcement_MSGTYPE PetAnnouncement
@@ -228,11 +232,11 @@ extern const pb_msgdesc_t PetRecord_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define MESHTASTIC_PET_PB_H_MAX_SIZE             PetAction_size
-#define PetAction_size                           457
+#define PetAction_size                           523
 #define PetAnnouncement_size                     140
 #define PetEnvelope_size                         400
-#define PetRecord_size                           252
-#define PetStatus_size                           209
+#define PetRecord_size                           318
+#define PetStatus_size                           275
 #define PetTimeSignal_size                       17
 
 #ifdef __cplusplus

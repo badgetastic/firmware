@@ -367,11 +367,11 @@ bool ecdsa_verify_atomic(const uint8_t pubKey[65], const uint8_t *msg, size_t ms
     return ret == 0;
 }
 
-const std::array<uint8_t, 65> petServerPublicKey = {0x04, 0x56, 0xd8, 0x24, 0xbf, 0x03, 0x6e, 0x32, 0x19, 0xfc, 0x4f, 0xd1, 0x70,
-                                                    0x33, 0x41, 0x3d, 0x7a, 0x2b, 0xb3, 0xaf, 0xdc, 0xbd, 0x0e, 0x3a, 0x48, 0x5d,
-                                                    0x5b, 0xaf, 0x6d, 0xb3, 0x24, 0x64, 0x51, 0xe5, 0x46, 0x3d, 0x43, 0x72, 0xe0,
-                                                    0x8b, 0x7c, 0x7c, 0x33, 0xee, 0x05, 0x09, 0x03, 0x11, 0x48, 0x91, 0x10, 0x81,
-                                                    0x97, 0xb6, 0xad, 0x1a, 0xa6, 0x19, 0x98, 0x3d, 0x7b, 0x92, 0x1c, 0x3f, 0x8a};
+const std::array<uint8_t, 65> petServerPublicKey = {0x04, 0x7A, 0x28, 0xDD, 0x80, 0xCD, 0x10, 0xD8, 0xA3, 0xA1, 0x9D, 0x5F, 0xB9,
+                                                    0x6B, 0xF2, 0xF2, 0xD6, 0x09, 0x18, 0xDE, 0x10, 0xDE, 0xB4, 0x03, 0xDE, 0x5B,
+                                                    0xED, 0x99, 0x8A, 0x49, 0xAC, 0x0B, 0x32, 0xB3, 0xF6, 0x9B, 0xDD, 0xA2, 0x8D,
+                                                    0x48, 0x06, 0x80, 0x6C, 0x40, 0x87, 0x80, 0x8B, 0xE8, 0xE4, 0x83, 0x60, 0x5A,
+                                                    0x92, 0x1F, 0x15, 0xC7, 0xDE, 0xB1, 0x4E, 0x28, 0x81, 0x10, 0x81, 0x18, 0xBE};
 
 // Generic method to encode a protobuf
 template <typename T>
@@ -464,8 +464,8 @@ template <typename T> bool decodeVerifiedPayload(const uint8_t *payload, size_t 
 }
 
 // Send PetAnnouncement
-bool sendPetAnnouncement(const uint8_t petPriv[32], const uint8_t petPub[65], const uint8_t ownerPub[65], uint8_t *outBuf,
-                         size_t outBufSize, size_t &outLen)
+bool buildSignedPetAnnouncement(const uint8_t petPriv[32], const uint8_t petPub[65], const uint8_t ownerPub[65], uint8_t *outBuf,
+                                size_t outBufSize, size_t &outLen)
 {
     PetAnnouncement ann = PetAnnouncement_init_default;
     ann.version = 1;
@@ -711,7 +711,10 @@ bool PetModule::hasValidPet()
 
 void PetModule::handleSelectEgg()
 {
-    myPet = PetRecord_init_default;
+    {
+        PetRecord tmp = PetRecord_init_default;
+        myPet = tmp;
+    }
     myPet.has_pet_status = true;
     myPet.pet_status.has_pet_announcement = true;
     switch (currentSelection % 3) {
@@ -738,8 +741,9 @@ void PetModule::handleSelectEgg()
     myPet.pet_status.pet_announcement.owner_public_key.size = owner.public_key.size;
     uint8_t announce_buffer[512];
     size_t announce_len;
-    if (!sendPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
-                             myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512, announce_len)) {
+    if (!buildSignedPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
+                                    myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512,
+                                    announce_len)) {
         return;
     }
     meshtastic_MeshPacket *p = allocDataPacket(); // Automagic Pet port binding
