@@ -24,9 +24,14 @@
 #include "pb_encode.h"
 
 #include <SHA256.h>
+#include <map>
 
 #define SCREEN_WIDTH display->getWidth()
 #define SCREEN_HEIGHT display->getHeight()
+
+#define cursor_width 8
+#define cursor_height 7
+static unsigned char cursor_bits[] = {0x03, 0x0f, 0x3f, 0xff, 0x31, 0x0d, 0x03};
 
 #define egg1_width 32
 #define egg1_height 48
@@ -146,6 +151,12 @@ static unsigned char spinner_bits[] = {
 
 namespace
 {
+static const char *eggMenuItems[] = {"Sing", "Hug", "Rock", "Back"};
+static const int eggMenuCount = 4;
+
+static const char *petMenuItems[] = {"Feed", "Play", "Clean", "Sing", "Battle", "Stats", "Back"};
+static const int petMenuCount = 7;
+
 void drawXbmPet(OLEDDisplay *display, int16_t center_x, int16_t center_y, uint8_t petSP)
 {
     switch (petSP) {
@@ -183,6 +194,165 @@ void drawXbmPet(OLEDDisplay *display, int16_t center_x, int16_t center_y, uint8_
         //     display->drawXbm(center_x - (egg1_width / 2), center_y - (egg1_height / 2), egg1_width, egg1_height, egg1_bits);
         //     break;
     }
+}
+
+// ====== CONFIGURABLE LIMITS ======
+static const uint8_t MAX_INFLIGHT = 8;
+static const uint8_t MAX_FRAGMENTS = 16;
+static const uint8_t MAX_SEEN = 16;
+
+// ====== SEEN MESSAGE CACHE ======
+struct SeenEntry {
+    uint32_t msg_id = 0;
+    uint32_t timestamp = 0;
+    bool used = false;
+};
+
+static SeenEntry seenList[MAX_SEEN];
+
+// ====== INFLIGHT FRAGMENT REASSEMBLY ======
+struct InflightMsg {
+    uint32_t msg_id = 0;
+    uint32_t timestamp = 0;
+    uint8_t fragment_count = 0;
+    bool used = false;
+
+    struct FragPart {
+        bool present = false;
+        uint16_t size = 0;
+        char data[200]; // adjust as needed
+    };
+
+    FragPart parts[MAX_FRAGMENTS];
+};
+
+static InflightMsg inflightList[MAX_INFLIGHT];
+
+static const uint32_t FRAG_TTL_SEC = 15;
+
+static void pruneFragments()
+{
+    uint32_t now = millis() / 1000;
+
+    // Prune inflight
+    for (auto &e : inflightList) {
+        if (e.used && (now - e.timestamp > FRAG_TTL_SEC)) {
+            e.used = false;
+        }
+    }
+
+    // Prune seen
+    for (auto &s : seenList) {
+        if (s.used && (now - s.timestamp > FRAG_TTL_SEC)) {
+            s.used = false;
+        }
+    }
+}
+
+static InflightMsg *getInflight(uint32_t msg_id)
+{
+    // First try to find existing entry
+    for (auto &e : inflightList) {
+        if (e.used && e.msg_id == msg_id)
+            return &e;
+    }
+
+    // Otherwise allocate a new slot
+    for (auto &e : inflightList) {
+        if (!e.used) {
+            e.used = true;
+            e.msg_id = msg_id;
+            e.timestamp = millis() / 1000;
+            memset(e.parts, 0, sizeof(e.parts));
+            return &e;
+        }
+    }
+
+    return nullptr; // no space
+}
+
+static void markSeen(uint32_t msg_id)
+{
+    uint32_t now = millis() / 1000;
+
+    // Try to update existing
+    for (auto &s : seenList) {
+        if (s.used && s.msg_id == msg_id) {
+            s.timestamp = now;
+            return;
+        }
+    }
+
+    // Insert new
+    for (auto &s : seenList) {
+        if (!s.used) {
+            s.used = true;
+            s.msg_id = msg_id;
+            s.timestamp = now;
+            return;
+        }
+    }
+
+    // If full, overwrite oldest
+    uint8_t oldest = 0;
+    for (uint8_t i = 1; i < MAX_SEEN; i++) {
+        if (seenList[i].timestamp < seenList[oldest].timestamp)
+            oldest = i;
+    }
+    seenList[oldest].msg_id = msg_id;
+    seenList[oldest].timestamp = now;
+}
+
+static bool isSeen(uint32_t msg_id)
+{
+    for (auto &s : seenList) {
+        if (s.used && s.msg_id == msg_id)
+            return true;
+    }
+    return false;
+}
+
+static bool processFragment(const PetFragment &frag, std::string &outFull)
+{
+    pruneFragments();
+
+    uint32_t msg_id = frag.msg_id;
+
+    if (isSeen(msg_id))
+        return false;
+
+    InflightMsg *entry = getInflight(msg_id);
+    if (!entry)
+        return false; // no space
+
+    entry->timestamp = millis() / 1000;
+    entry->fragment_count = frag.fragment_count;
+
+    if (frag.fragment_index >= MAX_FRAGMENTS)
+        return false;
+
+    auto &slot = entry->parts[frag.fragment_index];
+    slot.present = true;
+    slot.size = frag.data.size;
+    memcpy(slot.data, frag.data.bytes, frag.data.size);
+
+    // Check if all fragments arrived
+    for (uint8_t i = 0; i < entry->fragment_count; i++) {
+        if (!entry->parts[i].present)
+            return false;
+    }
+
+    // Reassemble
+    outFull.clear();
+    for (uint8_t i = 0; i < entry->fragment_count; i++) {
+        outFull.append(entry->parts[i].data, entry->parts[i].size);
+    }
+
+    // Mark complete
+    entry->used = false;
+    markSeen(msg_id);
+
+    return true;
 }
 
 void drawXbmRotSkew(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const uint8_t *xbm, int16_t degrees)
@@ -309,8 +479,17 @@ bool ecdsa_generate_keypair_atomic(uint8_t privOut[32], uint8_t pubOut[65])
     return true;
 }
 
-bool ecdsa_sign_atomic(const uint8_t privKey[32], const uint8_t *msg, size_t msgLen, uint8_t *sigOut, size_t &sigLenOut)
+bool ecdsa_sign_atomic(const uint8_t privKey[32], const uint8_t *msg, size_t msgLen,
+                       uint8_t *sigOut,   // must be 64 bytes
+                       size_t &sigLenOut) // will be set to 64
 {
+    // 1) Hash the message
+    uint8_t digest[32];
+    SHA256 sha;
+    sha.reset();
+    sha.update(msg, msgLen);
+    sha.finalize(digest, sizeof(digest));
+
     mbedtls_ecdsa_context ctx;
     mbedtls_ctr_drbg_context drbg;
     mbedtls_entropy_context entropy;
@@ -320,35 +499,60 @@ bool ecdsa_sign_atomic(const uint8_t privKey[32], const uint8_t *msg, size_t msg
     mbedtls_entropy_init(&entropy);
 
     const char *pers = "ecdsa_sign_atomic";
-    if (mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers)) != 0) {
+    if (mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers)) != 0)
         return false;
-    }
 
-    // Load curve
     if (mbedtls_ecp_group_load(&ctx.grp, MBEDTLS_ECP_DP_SECP256R1) != 0)
         return false;
 
-    // Load private key
     if (mbedtls_mpi_read_binary(&ctx.d, privKey, 32) != 0)
         return false;
 
-    // Compute public key from private key
+    // Compute public key (optional, but your original code did it)
     if (mbedtls_ecp_mul(&ctx.grp, &ctx.Q, &ctx.d, &ctx.grp.G, mbedtls_ctr_drbg_random, &drbg) != 0)
         return false;
 
-    // Sign
-    int ret =
-        mbedtls_ecdsa_write_signature(&ctx, MBEDTLS_MD_SHA256, msg, msgLen, sigOut, &sigLenOut, mbedtls_ctr_drbg_random, &drbg);
+    // r and s components
+    mbedtls_mpi r, s;
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
 
+    // Produce raw r and s
+    if (mbedtls_ecdsa_sign(&ctx.grp, &r, &s, &ctx.d, digest, sizeof(digest), mbedtls_ctr_drbg_random, &drbg) != 0)
+        return false;
+
+    // Export r and s as fixed 32‑byte big‑endian values
+    if (mbedtls_mpi_write_binary(&r, sigOut, 32) != 0)
+        return false;
+
+    if (mbedtls_mpi_write_binary(&s, sigOut + 32, 32) != 0)
+        return false;
+
+    sigLenOut = 64;
+
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
     mbedtls_ecdsa_free(&ctx);
     mbedtls_ctr_drbg_free(&drbg);
     mbedtls_entropy_free(&entropy);
 
-    return ret == 0;
+    return true;
 }
 
-bool ecdsa_verify_atomic(const uint8_t pubKey[65], const uint8_t *msg, size_t msgLen, const uint8_t *sig, size_t sigLen)
+bool ecdsa_verify_atomic(const uint8_t pubKey[65], const uint8_t *msg, size_t msgLen,
+                         const uint8_t *sig, // 64 bytes: r||s
+                         size_t sigLen)
 {
+    if (sigLen != 64)
+        return false; // must be exactly 32 + 32
+
+    // 1) Hash the message
+    uint8_t digest[32];
+    SHA256 sha;
+    sha.reset();
+    sha.update(msg, msgLen);
+    sha.finalize(digest, sizeof(digest));
+
     mbedtls_ecdsa_context ctx;
     mbedtls_ecdsa_init(&ctx);
 
@@ -356,22 +560,91 @@ bool ecdsa_verify_atomic(const uint8_t pubKey[65], const uint8_t *msg, size_t ms
     if (mbedtls_ecp_group_load(&ctx.grp, MBEDTLS_ECP_DP_SECP256R1) != 0)
         return false;
 
-    // Load public key (uncompressed)
+    // Load uncompressed public key (0x04 + X + Y)
     if (mbedtls_ecp_point_read_binary(&ctx.grp, &ctx.Q, pubKey, 65) != 0)
         return false;
 
-    // Verify
-    int ret = mbedtls_ecdsa_read_signature(&ctx, msg, msgLen, sig, sigLen);
+    // Split signature into r and s
+    mbedtls_mpi r, s;
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
 
+    if (mbedtls_mpi_read_binary(&r, sig, 32) != 0)
+        return false;
+
+    if (mbedtls_mpi_read_binary(&s, sig + 32, 32) != 0)
+        return false;
+
+    // Verify raw r and s
+    int ret = mbedtls_ecdsa_verify(&ctx.grp, digest, sizeof(digest), &ctx.Q, &r, &s);
+
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
     mbedtls_ecdsa_free(&ctx);
+
     return ret == 0;
 }
 
-const std::array<uint8_t, 65> petServerPublicKey = {0x04, 0x7A, 0x28, 0xDD, 0x80, 0xCD, 0x10, 0xD8, 0xA3, 0xA1, 0x9D, 0x5F, 0xB9,
-                                                    0x6B, 0xF2, 0xF2, 0xD6, 0x09, 0x18, 0xDE, 0x10, 0xDE, 0xB4, 0x03, 0xDE, 0x5B,
-                                                    0xED, 0x99, 0x8A, 0x49, 0xAC, 0x0B, 0x32, 0xB3, 0xF6, 0x9B, 0xDD, 0xA2, 0x8D,
-                                                    0x48, 0x06, 0x80, 0x6C, 0x40, 0x87, 0x80, 0x8B, 0xE8, 0xE4, 0x83, 0x60, 0x5A,
-                                                    0x92, 0x1F, 0x15, 0xC7, 0xDE, 0xB1, 0x4E, 0x28, 0x81, 0x10, 0x81, 0x18, 0xBE};
+const std::array<uint8_t, 65> petServerPublicKey = {0x04, 0x03, 0xBA, 0x42, 0x06, 0x2C, 0x03, 0x97, 0x74, 0x91, 0xB6, 0x07, 0x14,
+                                                    0xCA, 0x67, 0x8D, 0xD4, 0x16, 0x0E, 0xA7, 0x58, 0xD8, 0xDB, 0xCE, 0x6B, 0x7A,
+                                                    0x95, 0x3A, 0xC9, 0x54, 0x9A, 0x7E, 0x6D, 0xB8, 0x64, 0xF5, 0xDC, 0xE5, 0x4E,
+                                                    0xD3, 0xE3, 0x37, 0x30, 0x34, 0x9A, 0x2A, 0xC9, 0xD9, 0xCD, 0xCA, 0x0F, 0x10,
+                                                    0xBA, 0x15, 0xCB, 0x2C, 0x68, 0xAE, 0xF7, 0x5A, 0xC8, 0x7B, 0xC7, 0x6B, 0x59};
+
+bool verifyPetStatusSignature(const PetStatus &st)
+{
+    // Maximum canonical size:
+    // 1 (version)
+    // 65 (pet pubkey)
+    // 65 (owner pubkey)
+    // 1 + 32 (name length + name)
+    // 9 stats
+    const size_t max_canon = 1 + 65 + 65 + 1 + 32 + 9;
+    uint8_t canon[max_canon];
+    size_t pos = 0;
+
+    // version
+    canon[pos++] = (uint8_t)st.version;
+
+    // pet_public_key
+    if (st.pet_announcement.pet_public_key.size != 65)
+        return false;
+    memcpy(&canon[pos], st.pet_announcement.pet_public_key.bytes, 65);
+    pos += 65;
+
+    // owner_public_key
+    if (st.pet_announcement.owner_public_key.size != 65)
+        return false;
+    memcpy(&canon[pos], st.pet_announcement.owner_public_key.bytes, 65);
+    pos += 65;
+
+    // pet_name
+    uint8_t nameLen = 0;
+    if (st.pet_name != nullptr) {
+        nameLen = (uint8_t)strnlen(st.pet_name, 32);
+    }
+    canon[pos++] = nameLen;
+    memcpy(&canon[pos], st.pet_name, nameLen);
+    pos += nameLen;
+
+    // stats (9 bytes)
+    uint8_t stats[9] = {(uint8_t)st.sp, (uint8_t)st.re, (uint8_t)st.ha, (uint8_t)st.vg, (uint8_t)st.sa,
+                        (uint8_t)st.en, (uint8_t)st.jy, (uint8_t)st.ey, (uint8_t)st.sc};
+    memcpy(&canon[pos], stats, 9);
+    pos += 9;
+
+    // server_sig must be 64 bytes
+    if (st.server_sig.size != 64)
+        return false;
+
+    // Verify signature
+    bool ok = ecdsa_verify_atomic(petServerPublicKey.data(), // 65‑byte uncompressed server pubkey
+                                  canon, pos,                // canonical bytes
+                                  st.server_sig.bytes,       // r||s
+                                  st.server_sig.size);
+
+    return ok;
+}
 
 // Generic method to encode a protobuf
 template <typename T>
@@ -392,44 +665,9 @@ template <typename T> bool decodeProto(T &msg, const pb_msgdesc_t *fields, const
     return pb_decode(&stream, fields, &msg);
 }
 
-// Create a PetEnvelope from an already-encoded payload.
-// Signs the payload using the provided private key.
-// publicKey may be null if omitted (e.g., server-signed messages).
-bool createEnvelope(const uint8_t *payload, size_t payloadLen, PetMessageType type,
-                    const uint8_t *signingPrivKey, // 32 bytes
-                    const uint8_t *signerPubKey,   // 65 bytes
-                    uint8_t *outBuf, size_t outBufSize, size_t &outLen)
-{
-    PetEnvelope env = PetEnvelope_init_default;
-    env.version = 1;
-    env.message_type = type;
-
-    // Copy payload
-    if (payloadLen > sizeof(env.payload.bytes))
-        return false;
-    memcpy(env.payload.bytes, payload, payloadLen);
-    env.payload.size = payloadLen;
-
-    // Sign payload
-    size_t sigLen = 64;
-    if (!ecdsa_sign_atomic(signingPrivKey, payload, payloadLen, env.signature.bytes, sigLen)) {
-        return false;
-    }
-    env.signature.size = sigLen;
-
-    memcpy(env.public_key.bytes, signerPubKey, 65);
-    env.public_key.size = 65;
-    // Though technically optional in general, not optional for any enveloped messages this codebase creates.
-
-    // Encode envelope
-    return encodeProto(env, PetEnvelope_fields, outBuf, outBufSize, outLen);
-}
-
 // Verify an incoming envelope and extract the payload.
 // Returns true if signature is valid and payload is copied out.
-bool verifyEnvelope(const PetEnvelope &env,
-                    const uint8_t *serverPubKey, // 65 bytes
-                    uint8_t *outPayload, size_t &outPayloadLen)
+bool verifyEnvelope(const PetEnvelope &env, const uint8_t *serverPubKey)
 {
     // Determine which key to use
     const uint8_t *pubKey = nullptr;
@@ -447,12 +685,6 @@ bool verifyEnvelope(const PetEnvelope &env,
         return false;
     }
 
-    // Copy payload out
-    if (env.payload.size > outPayloadLen)
-        return false;
-    memcpy(outPayload, env.payload.bytes, env.payload.size);
-    outPayloadLen = env.payload.size;
-
     return true;
 }
 
@@ -461,80 +693,6 @@ bool verifyEnvelope(const PetEnvelope &env,
 template <typename T> bool decodeVerifiedPayload(const uint8_t *payload, size_t payloadLen, T &msg, const pb_msgdesc_t *fields)
 {
     return decodeProto(msg, fields, payload, payloadLen);
-}
-
-// Send PetAnnouncement
-bool buildSignedPetAnnouncement(const uint8_t petPriv[32], const uint8_t petPub[65], const uint8_t ownerPub[65], uint8_t *outBuf,
-                                size_t outBufSize, size_t &outLen)
-{
-    PetAnnouncement ann = PetAnnouncement_init_default;
-    ann.version = 1;
-
-    memcpy(ann.pet_public_key.bytes, petPub, 65);
-    ann.pet_public_key.size = 65;
-
-    memcpy(ann.owner_public_key.bytes, ownerPub, 65);
-    ann.owner_public_key.size = 65;
-
-    uint8_t payload[256];
-    size_t payloadLen = sizeof(payload);
-
-    if (!encodeProto(ann, PetAnnouncement_fields, payload, sizeof(payload), payloadLen))
-        return false;
-
-    return createEnvelope(payload, payloadLen, PetMessageType_PET_MESSAGE_TYPE_ANNOUNCEMENT, petPriv, petPub, outBuf, outBufSize,
-                          outLen);
-}
-
-// Send PetAction
-bool sendPetAction(const uint8_t petPriv[32], const uint8_t petPub[65], const PetStatus &status, const PetTimeSignal &ts,
-                   const uint8_t *actionBytes, size_t actionLen, uint64_t nonce,
-                   const PetAnnouncement *otherPet, // optional
-                   uint8_t *outBuf, size_t outBufSize, size_t &outLen)
-{
-    PetAction act = PetAction_init_default;
-    act.version = 1;
-
-    act.time_signal = ts;
-    act.pet_status = status;
-
-    if (actionLen > sizeof(act.action.bytes))
-        return false;
-    memcpy(act.action.bytes, actionBytes, actionLen);
-    act.action.size = actionLen;
-
-    act.nonce = nonce;
-
-    if (otherPet) {
-        act.other_pet = *otherPet;
-    }
-
-    uint8_t payload[256];
-    size_t payloadLen = sizeof(payload);
-
-    if (!encodeProto(act, PetAction_fields, payload, sizeof(payload), payloadLen))
-        return false;
-
-    return createEnvelope(payload, payloadLen, PetMessageType_PET_MESSAGE_TYPE_ACTION, petPriv, petPub, outBuf, outBufSize,
-                          outLen);
-}
-
-// Handle an incoming envelope and decode the inner message.
-// Returns the message type, or PetMessageType_PET_MESSAGE_TYPE_UNKNOWN on failure.
-PetMessageType handleIncomingEnvelope(const uint8_t *buf, size_t len, const uint8_t serverPubKey[65])
-{
-    PetEnvelope env = PetEnvelope_init_default;
-
-    if (!decodeProto(env, PetEnvelope_fields, buf, len))
-        return PetMessageType_PET_MESSAGE_TYPE_UNKNOWN;
-
-    uint8_t payload[256];
-    size_t payloadLen = sizeof(payload);
-
-    if (!verifyEnvelope(env, serverPubKey, payload, payloadLen))
-        return PetMessageType_PET_MESSAGE_TYPE_UNKNOWN;
-
-    return env.message_type;
 }
 
 const std::array<uint8_t, 30> petNUMSalt = {0x74, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x6e, 0x6f, 0x74,
@@ -581,7 +739,7 @@ PetModule::PetModule()
 {
     LOG_INFO("PetModule is enabled");
     // this->inputObserver.observe(inputBroker);
-    prefs.begin("PetModule", false);
+
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET_BACKGROUND; // We want to change the list of frames shown on-screen
     this->notifyObservers(&e);
@@ -590,8 +748,9 @@ PetModule::PetModule()
 
 void PetModule::handleInit()
 {
+    LOG_DEBUG("handleInit");
     textInput = false;
-    if (!hasValidPet()) {
+    if (!loadPet()) {
         LOG_DEBUG("Invalid or Missing Pet");
         currentScreen = PetScreen::HatcheryLoad;
         return;
@@ -616,8 +775,8 @@ void PetModule::handleInit()
 
 void PetModule::handleHatcheryLoad()
 {
+    LOG_DEBUG("handleHatcheryLoad");
     textInput = false;
-    delayedAction = true;
     if (!readyA) {
         readyA = ecdsa_generate_keypair_atomic(privOutA, pubOutA);
         spA = getSpecies(pubOutA);
@@ -638,23 +797,27 @@ void PetModule::handleHatcheryLoad()
 
 void PetModule::handleHatcheryMenu()
 {
+    LOG_DEBUG("handleHatcheryMenu");
     textInput = false;
     // Allow selection of Egg
 }
 
 void PetModule::handleNameEntry()
 {
+    LOG_DEBUG("handleNameEntry");
     textInput = true;
 }
 
 void PetModule::handleEggMenu()
 {
+    LOG_DEBUG("handleEggMenu");
     textInput = false;
     // Allow selection of petAction
 }
 
 void PetModule::handlePetMenu()
 {
+    LOG_DEBUG("handlePetMenu");
     textInput = false;
     // Allow selection of petAction
 }
@@ -662,19 +825,28 @@ void PetModule::handlePetMenu()
 void PetModule::setScreen(PetScreen newScreen) {}
 void PetModule::nextSelection()
 {
+    LOG_DEBUG("nextSelection");
     currentSelection += 1;
     screen->runNow();
 }
 void PetModule::prevSelection()
 {
+    LOG_DEBUG("prevSelection");
     currentSelection -= 1;
     screen->runNow();
 }
 
 bool PetModule::hasValidPet()
 {
-    uint8_t stored[256];
-    int stored_len = prefs.getBytes("pet", stored, 256);
+    return pet_loaded;
+}
+
+bool PetModule::loadPet()
+{
+    prefs.begin("PetModule", false);
+    uint8_t stored[512];
+    size_t stored_len = prefs.getBytes("pet", stored, 512);
+    prefs.end();
 
     if (stored_len == 0) {
         LOG_DEBUG("No Pet Stored");
@@ -706,17 +878,38 @@ bool PetModule::hasValidPet()
         return false;
     }
 
+    pet_loaded = true;
+    return pet_loaded;
+}
+
+bool PetModule::savePet()
+{
+    uint8_t stored[512];
+    size_t stored_len = sizeof(stored);
+
+    if (!encodeProto(myPet, PetRecord_fields, stored, sizeof(stored), stored_len))
+        return false;
+
+    prefs.begin("PetModule", false);
+    prefs.putBytes("record", &myPet, sizeof(myPet));
+    prefs.end();
+    pet_loaded = true;
     return true;
 }
 
 void PetModule::handleSelectEgg()
 {
+    LOG_DEBUG("handleSelectEgg");
+    setScreen(PetScreen::SendSpinner);
+    screen->runNow();
+    LOG_DEBUG("Creating PetRecord");
     {
         PetRecord tmp = PetRecord_init_default;
         myPet = tmp;
     }
     myPet.has_pet_status = true;
     myPet.pet_status.has_pet_announcement = true;
+    LOG_DEBUG("Loading the selected egg into PetRecord");
     switch (currentSelection % 3) {
     case 0:
         memcpy(myPet.private_key.bytes, privOutA, sizeof(privOutA));
@@ -737,22 +930,12 @@ void PetModule::handleSelectEgg()
         myPet.pet_status.pet_announcement.pet_public_key.size = sizeof(pubOutC);
         break;
     }
+    myPet.pet_status.pet_announcement.node_id = nodeDB->getNodeNum();
     memcpy(myPet.pet_status.pet_announcement.owner_public_key.bytes, owner.public_key.bytes, owner.public_key.size);
     myPet.pet_status.pet_announcement.owner_public_key.size = owner.public_key.size;
-    uint8_t announce_buffer[512];
-    size_t announce_len;
-    if (!buildSignedPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
-                                    myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512,
-                                    announce_len)) {
-        return;
-    }
-    meshtastic_MeshPacket *p = allocDataPacket(); // Automagic Pet port binding
-    // Not setting "to", Broadcast.
-    // Not setting "channel", Primary
-    p->want_ack = false;
-    memcpy(p->decoded.payload.bytes, announce_buffer, announce_len);
-    p->decoded.payload.size = announce_len;
-    service->sendToMesh(p, RX_SRC_LOCAL, true);
+    LOG_DEBUG("Ann Pet Pubkey Size: %i", myPet.pet_status.pet_announcement.pet_public_key.size);
+    LOG_DEBUG("Ann Owner Pubkey Size: %i", myPet.pet_status.pet_announcement.owner_public_key.size);
+    fragSend(myPet.pet_status.pet_announcement, PetAnnouncement_fields, PetMessageType_PET_MESSAGE_TYPE_ANNOUNCEMENT);
 }
 
 int32_t PetModule::runOnce()
@@ -834,21 +1017,114 @@ void PetModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         drawReticule(display, SCREEN_WIDTH / 4 * ((currentSelection % 3) + 1), SCREEN_HEIGHT / 2, 32, 32);
         break;
 
+    case PetScreen::SendSpinner:
+        // Display the Load and Menu elements
+        drawXbmRotSkew((SCREEN_WIDTH - spinner_width) / 2, (SCREEN_HEIGHT - spinner_height) / 2, spinner_width, spinner_height,
+                       spinner_bits, rot + 120);
+        rot += 360 - 40;
+        rot %= 360;
+        screen->runNow();
+        break;
+
+    case PetScreen::NameEntry:
+        display->setFont(ArialMT_Plain_10);
+        // Left: name + menu
+        display->drawString(0, 0, "Name your egg...");
+        display->drawString(0, 0, nameBuf);
+        break;
+
     case PetScreen::EggMenu:
-        display->setTextAlignment(TEXT_ALIGN_CENTER);
-        display->setFont(FONT_SMALL);
-        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_EggMenu");
+        display->setFont(ArialMT_Plain_10);
+
+        // Left: name + menu
+        display->drawString(0, 0, myPet.pet_status.pet_name);
+
+        for (int i = 0; i < eggMenuCount; ++i) {
+            int y = 12 + i * 10;
+            if (i == currentSelection) {
+                // draw pointer (8x8 empty XBM for now)
+                display->drawXbm(0, y, cursor_width, cursor_height, cursor_bits);
+            }
+            display->drawString(12, y, eggMenuItems[i]);
+            drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, myPet.pet_status.sp);
+        }
+
         break;
 
     case PetScreen::PetMenu:
-        display->setTextAlignment(TEXT_ALIGN_CENTER);
-        display->setFont(FONT_SMALL);
-        display->drawString(display->getWidth() / 2, display->getHeight() / 2, "Pet_PetMenu");
+        display->setFont(ArialMT_Plain_10);
+
+        // Left: name + menu
+        display->drawString(0, 0, myPet.pet_status.pet_name);
+
+        for (int i = 0; i < petMenuCount; ++i) {
+            int y = 12 + i * 10;
+            if (i == currentSelection) {
+                // draw pointer (8x8 empty XBM for now)
+                display->drawXbm(0, y, cursor_width, cursor_height, cursor_bits);
+            }
+            display->drawString(12, y, petMenuItems[i]);
+            drawXbmPet(display, SCREEN_WIDTH / 4 * 3, SCREEN_HEIGHT / 2, myPet.pet_status.sp);
+        }
         break;
+
+    case PetScreen::PetStats: {
+        const auto &st = myPet.pet_status;
+        int maxBar = 60;
+
+        auto drawBar = [&](int y, const char *label, uint8_t value, uint8_t cap) {
+            display->drawString(0, y, label);
+            float f = cap ? (float)value / (float)cap : 0.0f;
+            if (f > 1.0f)
+                f = 1.0f;
+            int w = (int)(f * maxBar);
+            display->drawRect(30, y, maxBar, 8);
+            display->fillRect(30, y, w, 8);
+        };
+
+        display->setFont(ArialMT_Plain_10);
+
+        // Left: name + menu
+        display->drawString(0, 0, myPet.pet_status.pet_name);
+        drawBar(12, "Sat", st.sa, (20 + (2 * (st.vg + st.re)))); // or some derived cap
+        drawBar(24, "Enc", st.en, st.re);
+        drawBar(36, "Joy", st.jy, st.ha);
+        drawBar(48, "Eng", st.ey, st.vg);
+    } break;
     }
 
     /* display->drawXbm(x + (SCREEN_WIDTH - icon_width) / 2, y + (SCREEN_HEIGHT - FONT_HEIGHT_MEDIUM - icon_height) / 2 + 2 +
        10, icon_width, icon_height, icon_bits); */
+}
+
+void PetModule::sendNameAction()
+{
+    if (!hasValidPet())
+        return;
+
+    setScreen(PetScreen::SendSpinner);
+    screen->runNow();
+    PetAction act = PetAction_init_default;
+    act.version = 1;
+
+    // embed last known time + status
+    // (you can keep last timesignal + status in myPet or separate fields)
+    act.time_signal = last_timesignal; // if you store it
+    act.pet_status = myPet.pet_status;
+
+    act.verb = PetVerb_NAME;
+
+    // extra = name string
+    std::string nameStr = nameBuf.c_str();
+    if (nameStr.size() > 32)
+        nameStr.resize(32);
+    act.extra.size = nameStr.size();
+    memcpy(act.extra.bytes, nameStr.data(), nameStr.size());
+
+    act.nonce += 1;
+
+    // Wrap in PetEnvelope, sign, fragment, send
+    fragSend(act, PetAction_fields, PetMessageType_PET_MESSAGE_TYPE_ACTION);
 }
 
 int PetModule::handleInputEvent(const InputEvent *event)
@@ -856,21 +1132,50 @@ int PetModule::handleInputEvent(const InputEvent *event)
     if (interceptingKeyboardInput()) {
         LOG_DEBUG("FlagInput: %i -> Event %i (Char %c)", event->source, event->inputEvent, event->kbchar);
         if (textInput) {
-            LOG_DEBUG("TODO: Pet Textmode");
+            LOG_DEBUG("Pet Textmode, Only Supposed to Happen in NameEntry");
+            if (currentScreen == PetScreen::NameEntry) {
+                // Simple: ENTER = submit, CANCEL = hatchery, BACK = backspace
+                if (event->inputEvent == INPUT_BROKER_CANCEL) {
+                    // maybe go back to HatcheryMenu
+                    setScreen(PetScreen::HatcheryMenu);
+                }
+                if (event->inputEvent == INPUT_BROKER_BACK && nameBuf.length() > 0) {
+                    nameBuf.remove(nameBuf.length() - 1);
+                }
+                if (event->inputEvent == INPUT_BROKER_SELECT) {
+                    // submit name: build NAME PetAction
+                    // name is in some buffer, e.g. nameBuffer
+                    sendNameAction();
+                    // show spinner until PetStatus comes back
+                    delayedAction = true;
+                    return 1;
+                }
+                if (event->kbchar >= 32 && event->kbchar <= 126 && nameBuf.length() > 32) {
+                    // append to name buffer (max 32)
+                    nameBuf.concat(event->kbchar);
+                    return 1;
+                }
+            }
         } else {
+            LOG_DEBUG("Pet Cursormode");
             if (event->inputEvent == INPUT_BROKER_UP ||
                 (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("2abcABC", event->kbchar))) {
+                LOG_DEBUG("Up Action");
                 prevSelection();
             } else if (event->inputEvent == INPUT_BROKER_DOWN ||
                        (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("8tuvTUV", event->kbchar))) {
+                LOG_DEBUG("Down Action");
                 nextSelection();
             } else if (event->inputEvent == INPUT_BROKER_LEFT ||
                        (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("4ghiGHI", event->kbchar))) {
+                LOG_DEBUG("Left Action");
                 prevSelection();
             } else if (event->inputEvent == INPUT_BROKER_RIGHT ||
                        (event->inputEvent == INPUT_BROKER_ANYKEY && strchr("6mnoMNO", event->kbchar))) {
+                LOG_DEBUG("Right Action");
                 nextSelection();
             } else if (event->inputEvent == INPUT_BROKER_SELECT) {
+                LOG_DEBUG("Select Action");
                 switch (currentScreen) {
                 case PetScreen::HatcheryMenu:
                     handleSelectEgg();
@@ -898,10 +1203,201 @@ bool PetModule::interceptingKeyboardInput()
 
 ProcessMessage PetModule::handleReceived(const meshtastic_MeshPacket &mp)
 {
-    if (mp.decoded.portnum == meshtastic_PortNum_STA_PET) {
-        LOG_INFO("Saw a Pet packet!");
-        return ProcessMessage::STOP;
-    } else {
+    if (mp.decoded.portnum != meshtastic_PortNum_STA_PET)
         return ProcessMessage::CONTINUE;
+    LOG_DEBUG("PetModule received STA_PET packet!");
+
+    const auto &payload = mp.decoded.payload;
+
+    LOG_DEBUG("Attempting to decode as a fragment");
+    PetFragment frag = PetFragment_init_default;
+
+    if (!pb_decode_from_bytes(payload.bytes, payload.size, PetFragment_fields, &frag)) {
+        LOG_WARN("PetModule: couldn't decode PetFragment");
+        return ProcessMessage::STOP;
+    }
+
+    if (frag.magic != 0x50455446) {
+        LOG_WARN("PetModule: bad magic");
+        return ProcessMessage::STOP;
+    }
+
+    std::string full;
+    if (!processFragment(frag, full)) {
+        // waiting for more or already processed
+        return ProcessMessage::STOP;
+    }
+
+    // Now we have a full PetEnvelope
+    PetEnvelope env = PetEnvelope_init_default;
+
+    if (!pb_decode_from_bytes((const uint8_t *)full.data(), full.size(), PetEnvelope_fields, &env)) {
+        LOG_WARN("PetModule: couldn't decode PetEnvelope");
+        return ProcessMessage::STOP;
+    }
+
+    if (env.message_type == PetMessageType_PET_MESSAGE_TYPE_TIME_SIGNAL) {
+        LOG_WARN("PetModule: Processing as a Time Signal");
+        if (!verifyEnvelope(env, petServerPublicKey.data())) {
+            LOG_WARN("PetModule: couldn't verify envelope signature");
+            return ProcessMessage::STOP;
+        }
+
+        PetTimeSignal ts = PetTimeSignal_init_default;
+        if (pb_decode_from_bytes(env.payload.bytes, env.payload.size, PetTimeSignal_fields, &ts)) {
+            last_timesignal.unix_time_s = ts.unix_time_s;
+            LOG_DEBUG("PetModule: Current time: %i", ts.unix_time_s);
+        } else {
+            LOG_WARN("PetModule: couldn't decode PetTimeSignal");
+        }
+        return ProcessMessage::STOP;
+    }
+
+    if (env.message_type == PetMessageType_PET_MESSAGE_TYPE_STATUS) {
+        LOG_WARN("PetModule: Processing as a Pet Status");
+        if (!verifyEnvelope(env, petServerPublicKey.data())) {
+            LOG_WARN("PetModule: couldn't verify envelope signature");
+            return ProcessMessage::STOP;
+        }
+
+        PetStatus status = PetStatus_init_default;
+        if (!pb_decode_from_bytes(env.payload.bytes, env.payload.size, PetStatus_fields, &status)) {
+            LOG_WARN("PetModule: couldn't decode PetStatus");
+            return ProcessMessage::STOP;
+        }
+
+        if (!status.has_pet_announcement ||
+            status.pet_announcement.pet_public_key.bytes != myPet.pet_status.pet_announcement.pet_public_key.bytes) {
+            LOG_DEBUG("PetModule: not my monkey");
+            return ProcessMessage::STOP;
+        }
+
+        if (!verifyPetStatusSignature(status)) {
+            LOG_WARN("PetModule: couldn't verify PetStatus signature");
+            return ProcessMessage::STOP;
+        }
+
+        // Store into myPet + prefs
+        myPet.pet_status = status; // assuming PetRecord has pet_status field
+        nameBuf = String(myPet.pet_status.pet_name);
+        savePet();
+
+        // Mark that we now have a valid pet and can move UI forward
+        handlePetUpdate();
+
+        return ProcessMessage::STOP;
+    }
+
+    LOG_WARN("PetModule: ignoring non-status and non-ts messages");
+    return ProcessMessage::STOP;
+}
+
+template <typename T> void PetModule::fragSend(const T &msg, const pb_msgdesc_t *fields, PetMessageType pet_message_type)
+{
+    LOG_DEBUG("Serializing the message...");
+    size_t msg_len = sizeof(frag_msg_buffer);
+    msg_len = pb_encode_to_bytes(frag_msg_buffer, sizeof(frag_msg_buffer), fields, &msg);
+    if (msg_len == 0) {
+        LOG_DEBUG("Couldn't serialize the message");
+        return;
+    }
+    LOG_DEBUG("Serialized the message (%i bytes)", msg_len);
+    LOG_DEBUG("Creating the envelope");
+    PetEnvelope signedMsg = PetEnvelope_init_default;
+    signedMsg.message_type = pet_message_type;
+    memcpy(signedMsg.payload.bytes, frag_msg_buffer, msg_len);
+    signedMsg.payload.size = msg_len;
+    memcpy(signedMsg.public_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
+           myPet.pet_status.pet_announcement.pet_public_key.size);
+    signedMsg.public_key.size = myPet.pet_status.pet_announcement.pet_public_key.size;
+    LOG_DEBUG("Signing the message");
+    size_t sigOutLen = sizeof(frag_sigOut);
+    if (!ecdsa_sign_atomic(myPet.private_key.bytes, frag_msg_buffer, msg_len, frag_sigOut, sigOutLen)) {
+        LOG_DEBUG("Couldn't sign the Pet Announcement");
+        return;
+    }
+    if (sigOutLen != 64) {
+        LOG_DEBUG("Unexpected signature length: %u", (unsigned)sigOutLen);
+        return;
+    }
+    LOG_DEBUG("Announcement signed");
+    memcpy(signedMsg.signature.bytes, frag_sigOut, sigOutLen);
+    signedMsg.signature.size = sigOutLen;
+    LOG_DEBUG("SigAnn MsgType: %i", signedMsg.message_type);
+    LOG_DEBUG("SigAnn Payload Size: %i", signedMsg.payload.size);
+    LOG_DEBUG("SigAnn Pubkey Size: %i", signedMsg.public_key.size);
+    LOG_DEBUG("SigAnn Signature Size: %i", signedMsg.signature.size);
+    LOG_DEBUG("Serializing the envelope...");
+    size_t envOutLen = sizeof(frag_envOut);
+    envOutLen = pb_encode_to_bytes(frag_envOut, sizeof(frag_envOut), PetEnvelope_fields, &signedMsg);
+    if (envOutLen == 0) {
+        LOG_DEBUG("Couldn't serialize the envelope");
+        return;
+    }
+    LOG_DEBUG("Serialized the envelope (%i bytes)", envOutLen);
+    // LOG_DEBUG("Didn't panic while serialising the envelope");
+    // LOG_DEBUG("Building the Signed Pet Announcement");
+    //  buildSignedPetAnnouncement(myPet.private_key.bytes, myPet.pet_status.pet_announcement.pet_public_key.bytes,
+    //                             myPet.pet_status.pet_announcement.owner_public_key.bytes, announce_buffer, 512,
+    //                             announce_len);
+
+    // for (int i = 0; i < 3; i++) {
+
+    const size_t FRAG_SIZE = 150; // safe for Meshtastic MTU
+
+    uint32_t msg_id = hashDerivedInt(UINT32_MAX, frag_envOut, envOutLen);
+    size_t fragment_count = (envOutLen + FRAG_SIZE - 1) / FRAG_SIZE;
+
+    for (size_t i = 0; i < fragment_count; i++) {
+        PetFragment frag = PetFragment_init_default;
+        frag.magic = 0x50455446;
+        frag.msg_id = msg_id;
+        frag.fragment_index = i;
+        frag.fragment_count = fragment_count;
+
+        size_t offset = i * FRAG_SIZE;
+        size_t len = std::min(FRAG_SIZE, envOutLen - offset);
+
+        memcpy(frag.data.bytes, frag_envOut + offset, len);
+        frag.data.size = len;
+
+        // Encode frag into a buffer
+        size_t fragLen = pb_encode_to_bytes(fragBuf, sizeof(fragBuf), PetFragment_fields, &frag);
+
+        // Send fragBuf as the payload of a MeshPacket
+
+        LOG_DEBUG("Getting a Datapacket from Pool");
+        meshtastic_MeshPacket *p = allocDataPacket();
+        // Not setting "to", Broadcast.
+        p->to = 0xffffffff;
+        // Not setting "channel", Primary
+        p->want_ack = false;
+        LOG_DEBUG("Copy envOut into packet payload");
+        memcpy(p->decoded.payload.bytes, fragBuf, fragLen);
+        p->decoded.payload.size = fragLen;
+        LOG_DEBUG("Sending packet");
+        service->sendToMesh(p, RX_SRC_LOCAL, true);
+    }
+}
+
+void PetModule::handlePetUpdate()
+{
+    LOG_DEBUG("Received a Pet Status for us");
+    // Called after we receive a PetStatus and store it
+    if (!hasValidPet())
+        LOG_DEBUG("The pet was malformed");
+    return;
+
+    // If we don't have a name yet (or still default), go to NameEntry
+    LOG_DEBUG("Checking pet name: %s", myPet.pet_status.pet_name);
+    if (new_pet) {
+        setScreen(PetScreen::NameEntry);
+    } else {
+        // We already have a name, go straight to egg or pet menu
+        if (myPet.pet_status.sp <= 4) {
+            setScreen(PetScreen::EggMenu);
+        } else {
+            setScreen(PetScreen::PetMenu);
+        }
     }
 }

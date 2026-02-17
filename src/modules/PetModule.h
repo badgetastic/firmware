@@ -36,7 +36,8 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     CallbackObserver<PetModule, const InputEvent *> inputObserver =
         CallbackObserver<PetModule, const InputEvent *>(this, &PetModule::handleInputEvent);
     Preferences prefs;
-    enum class PetScreen { Init, HatcheryLoad, HatcheryMenu, NameEntry, EggMenu, PetMenu };
+    enum class PetScreen { Init, HatcheryLoad, HatcheryMenu, SendSpinner, NameEntry, EggMenu, PetMenu, PetStats };
+
     PetScreen currentScreen;
     int currentSelection;
     static const std::array<uint8_t, 65> petServerKey;
@@ -47,12 +48,19 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     void handleEggMenu();
     void handlePetMenu();
     void handleSelectEgg();
+    void handlePetUpdate();
+    void sendNameAction();
+    void sendPetAction();
+
+    template <typename T> void fragSend(const T &msg, const pb_msgdesc_t *fields, PetMessageType pet_message_type);
 
     void setScreen(PetScreen newScreen);
     void firstSelection();
     void nextSelection();
     void prevSelection();
     bool hasValidPet();
+    bool loadPet();
+    bool savePet();
     bool textInput = false;
     bool delayedAction = true;
     PetRecord myPet;
@@ -69,8 +77,18 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
     uint8_t pubOutC[65];
     bool readyC = false;
     uint8_t spC = 0;
+    String nameBuf = "Egg-San";
+    uint64_t last_nonce = 0;
+    bool pet_loaded = false;
+    bool new_pet = true;
+
+    uint8_t frag_msg_buffer[512];
+    uint8_t frag_envOut[2048];
+    uint8_t fragBuf[200];
+    uint8_t frag_sigOut[64];
 
     uint32_t rot = 0;
+    PetTimeSignal last_timesignal = PetTimeSignal_init_default;
 
   protected:
     virtual int32_t runOnce() override;
@@ -99,24 +117,3 @@ class PetModule : public SinglePortModule, public Observable<const UIFrameEvent 
 extern PetModule *petModule;
 
 #endif
-
-/*
-Plan:
-
-Transitions between modes are triggered either by a user menu interaction or a packet.
-Init tries to restore state and jump to the correct mode, otherwise it directs you to hatchery init.
-Hatchery Init generates 3 "eggs" the redirects you to Hatchery menu
-Hatchery menu selects a Pet, saves it, then jumps to init.
-If a egg mode pet, go to egg menu
-Egg mode operates on 15 minute ticks
-If a grown pet, go to pet menu
-Pet menu operates on actions, + 15 minute ticks
-
-
-
-
-
-
-
-
-*/

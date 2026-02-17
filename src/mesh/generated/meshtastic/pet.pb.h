@@ -19,8 +19,32 @@ typedef enum _PetMessageType {
     PetMessageType_PET_MESSAGE_TYPE_RECORD = 5 /* not normally enveloped, but reserved */
 } PetMessageType;
 
+typedef enum _PetVerb {
+    /* Universal */
+    PetVerb_NAME = 0,
+    /* Egg mode (SP 0–4) */
+    PetVerb_EGG_SING = 1,
+    PetVerb_EGG_HUG = 2,
+    PetVerb_EGG_ROCK = 3,
+    /* Pet mode (SP 5–9) */
+    PetVerb_FEED = 10,
+    PetVerb_PLAY = 11,
+    PetVerb_CLEAN = 12, /* only valid when has_poop == 1 */
+    PetVerb_SING = 13, /* puts pet to sleep */
+    PetVerb_BATTLE = 14 /* optional other_pet used */
+} PetVerb;
+
 /* Struct definitions */
-typedef PB_BYTES_ARRAY_T(256) PetEnvelope_payload_t;
+typedef PB_BYTES_ARRAY_T(150) PetFragment_data_t;
+typedef struct _PetFragment {
+    uint32_t magic; /* Always 0x50455446 ("PETF") */
+    uint32_t msg_id;
+    uint32_t fragment_index;
+    uint32_t fragment_count;
+    PetFragment_data_t data;
+} PetFragment;
+
+typedef PB_BYTES_ARRAY_T(1024) PetEnvelope_payload_t;
 typedef PB_BYTES_ARRAY_T(64) PetEnvelope_signature_t;
 typedef PB_BYTES_ARRAY_T(65) PetEnvelope_public_key_t;
 typedef struct _PetEnvelope {
@@ -36,7 +60,8 @@ typedef PB_BYTES_ARRAY_T(65) PetAnnouncement_owner_public_key_t;
 typedef struct _PetAnnouncement {
     uint32_t version;
     PetAnnouncement_pet_public_key_t pet_public_key; /* uncompressed P-256 */
-    PetAnnouncement_owner_public_key_t owner_public_key; /* uncompressed P-256 */
+    PetAnnouncement_owner_public_key_t owner_public_key; /* meshtastic node pubkey -> 32b */
+    uint32_t node_id; /* uncompressed P-256 */
 } PetAnnouncement;
 
 typedef PB_BYTES_ARRAY_T(64) PetStatus_server_sig_t;
@@ -50,7 +75,7 @@ typedef struct _PetStatus {
     uint8_t sp;
     uint8_t re;
     uint8_t ha;
-    uint8_t st;
+    uint8_t vg;
     uint8_t sa;
     uint8_t en;
     uint8_t jy;
@@ -63,15 +88,17 @@ typedef struct _PetTimeSignal {
     uint64_t unix_time_s;
 } PetTimeSignal;
 
-typedef PB_BYTES_ARRAY_T(64) PetAction_action_t;
+typedef PB_BYTES_ARRAY_T(64) PetAction_extra_t;
 typedef struct _PetAction {
     uint32_t version;
     bool has_time_signal;
     PetTimeSignal time_signal;
     bool has_pet_status;
     PetStatus pet_status;
-    /* Opaque action payload; interpretation is server-defined. */
-    PetAction_action_t action;
+    /* The action verb (enum PetVerb) */
+    uint32_t verb;
+    /* Optional extra payload (e.g., name string, battle metadata) */
+    PetAction_extra_t extra;
     /* Nonce to help prevent replay / duplication. */
     uint64_t nonce;
     /* Optional other party in the action. */
@@ -97,6 +124,11 @@ extern "C" {
 #define _PetMessageType_MAX PetMessageType_PET_MESSAGE_TYPE_RECORD
 #define _PetMessageType_ARRAYSIZE ((PetMessageType)(PetMessageType_PET_MESSAGE_TYPE_RECORD+1))
 
+#define _PetVerb_MIN PetVerb_NAME
+#define _PetVerb_MAX PetVerb_BATTLE
+#define _PetVerb_ARRAYSIZE ((PetVerb)(PetVerb_BATTLE+1))
+
+
 #define PetEnvelope_message_type_ENUMTYPE PetMessageType
 
 
@@ -106,20 +138,27 @@ extern "C" {
 
 
 /* Initializer values for message structs */
+#define PetFragment_init_default                 {0, 0, 0, 0, {0, {0}}}
 #define PetEnvelope_init_default                 {0, _PetMessageType_MIN, {0, {0}}, {0, {0}}, {0, {0}}}
-#define PetAnnouncement_init_default             {0, {0, {0}}, {0, {0}}}
+#define PetAnnouncement_init_default             {0, {0, {0}}, {0, {0}}, 0}
 #define PetStatus_init_default                   {0, false, PetAnnouncement_init_default, {0, {0}}, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define PetTimeSignal_init_default               {0, 0}
-#define PetAction_init_default                   {0, false, PetTimeSignal_init_default, false, PetStatus_init_default, {0, {0}}, 0, false, PetAnnouncement_init_default}
+#define PetAction_init_default                   {0, false, PetTimeSignal_init_default, false, PetStatus_init_default, 0, {0, {0}}, 0, false, PetAnnouncement_init_default}
 #define PetRecord_init_default                   {0, false, PetStatus_init_default, {0, {0}}}
+#define PetFragment_init_zero                    {0, 0, 0, 0, {0, {0}}}
 #define PetEnvelope_init_zero                    {0, _PetMessageType_MIN, {0, {0}}, {0, {0}}, {0, {0}}}
-#define PetAnnouncement_init_zero                {0, {0, {0}}, {0, {0}}}
+#define PetAnnouncement_init_zero                {0, {0, {0}}, {0, {0}}, 0}
 #define PetStatus_init_zero                      {0, false, PetAnnouncement_init_zero, {0, {0}}, "", 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define PetTimeSignal_init_zero                  {0, 0}
-#define PetAction_init_zero                      {0, false, PetTimeSignal_init_zero, false, PetStatus_init_zero, {0, {0}}, 0, false, PetAnnouncement_init_zero}
+#define PetAction_init_zero                      {0, false, PetTimeSignal_init_zero, false, PetStatus_init_zero, 0, {0, {0}}, 0, false, PetAnnouncement_init_zero}
 #define PetRecord_init_zero                      {0, false, PetStatus_init_zero, {0, {0}}}
 
 /* Field tags (for use in manual encoding/decoding) */
+#define PetFragment_magic_tag                    1
+#define PetFragment_msg_id_tag                   2
+#define PetFragment_fragment_index_tag           3
+#define PetFragment_fragment_count_tag           4
+#define PetFragment_data_tag                     5
 #define PetEnvelope_version_tag                  1
 #define PetEnvelope_message_type_tag             2
 #define PetEnvelope_payload_tag                  3
@@ -128,6 +167,7 @@ extern "C" {
 #define PetAnnouncement_version_tag              1
 #define PetAnnouncement_pet_public_key_tag       2
 #define PetAnnouncement_owner_public_key_tag     3
+#define PetAnnouncement_node_id_tag              4
 #define PetStatus_version_tag                    1
 #define PetStatus_pet_announcement_tag           2
 #define PetStatus_server_sig_tag                 3
@@ -135,7 +175,7 @@ extern "C" {
 #define PetStatus_sp_tag                         5
 #define PetStatus_re_tag                         6
 #define PetStatus_ha_tag                         7
-#define PetStatus_st_tag                         8
+#define PetStatus_vg_tag                         8
 #define PetStatus_sa_tag                         9
 #define PetStatus_en_tag                         10
 #define PetStatus_jy_tag                         11
@@ -146,14 +186,24 @@ extern "C" {
 #define PetAction_version_tag                    1
 #define PetAction_time_signal_tag                2
 #define PetAction_pet_status_tag                 3
-#define PetAction_action_tag                     4
-#define PetAction_nonce_tag                      5
-#define PetAction_other_pet_tag                  6
+#define PetAction_verb_tag                       4
+#define PetAction_extra_tag                      5
+#define PetAction_nonce_tag                      6
+#define PetAction_other_pet_tag                  7
 #define PetRecord_version_tag                    1
 #define PetRecord_pet_status_tag                 2
 #define PetRecord_private_key_tag                3
 
 /* Struct field encoding specification for nanopb */
+#define PetFragment_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   magic,             1) \
+X(a, STATIC,   SINGULAR, UINT32,   msg_id,            2) \
+X(a, STATIC,   SINGULAR, UINT32,   fragment_index,    3) \
+X(a, STATIC,   SINGULAR, UINT32,   fragment_count,    4) \
+X(a, STATIC,   SINGULAR, BYTES,    data,              5)
+#define PetFragment_CALLBACK NULL
+#define PetFragment_DEFAULT NULL
+
 #define PetEnvelope_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   version,           1) \
 X(a, STATIC,   SINGULAR, UENUM,    message_type,      2) \
@@ -166,7 +216,8 @@ X(a, STATIC,   SINGULAR, BYTES,    public_key,        5)
 #define PetAnnouncement_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   version,           1) \
 X(a, STATIC,   SINGULAR, BYTES,    pet_public_key,    2) \
-X(a, STATIC,   SINGULAR, BYTES,    owner_public_key,   3)
+X(a, STATIC,   SINGULAR, BYTES,    owner_public_key,   3) \
+X(a, STATIC,   SINGULAR, UINT32,   node_id,           4)
 #define PetAnnouncement_CALLBACK NULL
 #define PetAnnouncement_DEFAULT NULL
 
@@ -178,7 +229,7 @@ X(a, STATIC,   SINGULAR, STRING,   pet_name,          4) \
 X(a, STATIC,   SINGULAR, UINT32,   sp,                5) \
 X(a, STATIC,   SINGULAR, UINT32,   re,                6) \
 X(a, STATIC,   SINGULAR, UINT32,   ha,                7) \
-X(a, STATIC,   SINGULAR, UINT32,   st,                8) \
+X(a, STATIC,   SINGULAR, UINT32,   vg,                8) \
 X(a, STATIC,   SINGULAR, UINT32,   sa,                9) \
 X(a, STATIC,   SINGULAR, UINT32,   en,               10) \
 X(a, STATIC,   SINGULAR, UINT32,   jy,               11) \
@@ -198,9 +249,10 @@ X(a, STATIC,   SINGULAR, UINT64,   unix_time_s,       2)
 X(a, STATIC,   SINGULAR, UINT32,   version,           1) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  time_signal,       2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  pet_status,        3) \
-X(a, STATIC,   SINGULAR, BYTES,    action,            4) \
-X(a, STATIC,   SINGULAR, UINT64,   nonce,             5) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  other_pet,         6)
+X(a, STATIC,   SINGULAR, UINT32,   verb,              4) \
+X(a, STATIC,   SINGULAR, BYTES,    extra,             5) \
+X(a, STATIC,   SINGULAR, UINT64,   nonce,             6) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  other_pet,         7)
 #define PetAction_CALLBACK NULL
 #define PetAction_DEFAULT NULL
 #define PetAction_time_signal_MSGTYPE PetTimeSignal
@@ -215,6 +267,7 @@ X(a, STATIC,   SINGULAR, BYTES,    private_key,       3)
 #define PetRecord_DEFAULT NULL
 #define PetRecord_pet_status_MSGTYPE PetStatus
 
+extern const pb_msgdesc_t PetFragment_msg;
 extern const pb_msgdesc_t PetEnvelope_msg;
 extern const pb_msgdesc_t PetAnnouncement_msg;
 extern const pb_msgdesc_t PetStatus_msg;
@@ -223,6 +276,7 @@ extern const pb_msgdesc_t PetAction_msg;
 extern const pb_msgdesc_t PetRecord_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
+#define PetFragment_fields &PetFragment_msg
 #define PetEnvelope_fields &PetEnvelope_msg
 #define PetAnnouncement_fields &PetAnnouncement_msg
 #define PetStatus_fields &PetStatus_msg
@@ -231,12 +285,13 @@ extern const pb_msgdesc_t PetRecord_msg;
 #define PetRecord_fields &PetRecord_msg
 
 /* Maximum encoded size of messages (where known) */
-#define MESHTASTIC_PET_PB_H_MAX_SIZE             PetAction_size
-#define PetAction_size                           523
-#define PetAnnouncement_size                     140
-#define PetEnvelope_size                         400
-#define PetRecord_size                           318
-#define PetStatus_size                           275
+#define MESHTASTIC_PET_PB_H_MAX_SIZE             PetEnvelope_size
+#define PetAction_size                           541
+#define PetAnnouncement_size                     146
+#define PetEnvelope_size                         1168
+#define PetFragment_size                         177
+#define PetRecord_size                           324
+#define PetStatus_size                           281
 #define PetTimeSignal_size                       17
 
 #ifdef __cplusplus

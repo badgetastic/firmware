@@ -6,6 +6,9 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
+PB_BIND(PetFragment, PetFragment, AUTO)
+
+
 PB_BIND(PetEnvelope, PetEnvelope, 2)
 
 
@@ -22,6 +25,8 @@ PB_BIND(PetAction, PetAction, 2)
 
 
 PB_BIND(PetRecord, PetRecord, 2)
+
+
 
 
 

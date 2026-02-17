@@ -15,6 +15,36 @@ enum PetMessageType {
     PET_MESSAGE_TYPE_RECORD         = 5; // not normally enveloped, but reserved
 }
 
+
+// -----------------------------------------------------------------------------
+// PetFragment
+// -----------------------------------------------------------------------------
+// Mandatory transport wrapper for all fragmented PetEnvelope messages.
+// Used when a PetEnvelope exceeds the mesh MTU and must be split across
+// multiple MeshPacket payloads.
+//
+// Fields:
+// - magic: constant 0x50455446 ("PETF") identifying this as a PetFragment
+// - msg_id: deterministic identifier for the full message (e.g., hash of payload)
+// - fragment_index: zero-based index of this fragment
+// - fragment_count: total number of fragments in the message
+// - data: raw slice of the serialized PetEnvelope payload
+//
+// Notes:
+// - All fragments for a given msg_id must be received before reassembly.
+// - Fragments may arrive out of order; receivers must buffer and reorder.
+// - Once all fragments are collected, concatenate data[] in index order and
+//   decode the resulting PetEnvelope.
+// -----------------------------------------------------------------------------
+
+message PetFragment {
+  uint32 magic = 1;          // Always 0x50455446 ("PETF")
+  uint32 msg_id = 2;
+  uint32 fragment_index = 3;
+  uint32 fragment_count = 4;
+  bytes data = 5 [(nanopb).max_size = 150];
+}
+
 // -----------------------------------------------------------------------------
 // PetEnvelope
 // -----------------------------------------------------------------------------
@@ -31,7 +61,7 @@ message PetEnvelope {
 
     PetMessageType message_type = 2;
 
-    bytes payload = 3 [(nanopb).max_size = 256];   // adjust as needed
+    bytes payload = 3 [(nanopb).max_size = 1024];   // adjust as needed
 
     bytes signature = 4 [
         (nanopb).max_size = 64
@@ -57,9 +87,11 @@ message PetAnnouncement {
         (nanopb).max_size = 65
     ]; // uncompressed P-256
 
-    bytes owner_public_key = 3 [
+        bytes owner_public_key = 3 [
         (nanopb).max_size = 65
-    ]; // uncompressed P-256
+    ]; // meshtastic node pubkey -> 32b
+
+    uint32 node_id = 4; // uncompressed P-256
 }
 
 // -----------------------------------------------------------------------------
@@ -87,12 +119,13 @@ message PetStatus {
     uint32 sp = 5  [(nanopb).int_size = IS_8];
     uint32 re = 6  [(nanopb).int_size = IS_8];
     uint32 ha = 7  [(nanopb).int_size = IS_8];
-    uint32 st = 8  [(nanopb).int_size = IS_8];
+    uint32 vg = 8  [(nanopb).int_size = IS_8];
     uint32 sa = 9  [(nanopb).int_size = IS_8];
-    uint32 en = 10  [(nanopb).int_size = IS_8];
+    uint32 en = 10 [(nanopb).int_size = IS_8];
     uint32 jy = 11 [(nanopb).int_size = IS_8];
     uint32 ey = 12 [(nanopb).int_size = IS_8];
     uint32 sc = 13 [(nanopb).int_size = IS_8];
+
 }
 
 // -----------------------------------------------------------------------------
@@ -110,13 +143,42 @@ message PetTimeSignal {
 }
 
 // -----------------------------------------------------------------------------
+// PetVerb
+// -----------------------------------------------------------------------------
+// Defines all possible actions a pet can perform.
+// Egg actions apply when SP is 0–4.
+// Pet actions apply when SP is 5–9.
+// NAME is universal.
+// -----------------------------------------------------------------------------
+
+enum PetVerb {
+    // Universal
+    NAME = 0;
+
+    // Egg mode (SP 0–4)
+    EGG_SING = 1;
+    EGG_HUG  = 2;
+    EGG_ROCK = 3;
+
+    // Pet mode (SP 5–9)
+    FEED  = 10;
+    PLAY  = 11;
+    CLEAN = 12;   // only valid when has_poop == 1
+    SING  = 13;   // puts pet to sleep
+    BATTLE = 14;  // optional other_pet used
+}
+
+
+
+// -----------------------------------------------------------------------------
 // PetAction
 // -----------------------------------------------------------------------------
 // Public, pet-signed.
 // - Embeds last seen PetTimeSignal and PetStatus.
-// - Contains opaque action bytes and a nonce.
-// - Optionally references another pet via its PetAnnouncement.
-// - Signed with petPrivateKey, via PetEnvelope.
+// - Contains an action verb and optional extra payload.
+// - Nonce prevents replay.
+// - Optional other_pet for social actions (battle, trade, etc.).
+// - Signed with petPrivateKey via PetEnvelope.
 // -----------------------------------------------------------------------------
 
 message PetAction {
@@ -126,17 +188,19 @@ message PetAction {
 
     PetStatus pet_status = 3;
 
-    // Opaque action payload; interpretation is server-defined.
-    bytes action = 4 [
-        (nanopb).max_size = 64
-    ];
+    // The action verb (enum PetVerb)
+    uint32 verb = 4;
+
+    // Optional extra payload (e.g., name string, battle metadata)
+    bytes extra = 5 [(nanopb).max_size = 64];
 
     // Nonce to help prevent replay / duplication.
-    uint64 nonce = 5;
+    uint64 nonce = 6;
 
     // Optional other party in the action.
-    PetAnnouncement other_pet = 6;
+    PetAnnouncement other_pet = 7;
 }
+
 
 // -----------------------------------------------------------------------------
 // PetRecord
