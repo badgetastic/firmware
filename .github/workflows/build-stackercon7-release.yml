@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - STAckerCon7_Release
+      - STAckerCon7_Stable
       - PetModule
   pull_request:
     branches:
       - STAckerCon7_Release
+      - STAckerCon7_Stable
       - PetModule
 
 permissions: read-all
