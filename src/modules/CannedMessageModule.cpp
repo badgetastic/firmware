@@ -360,7 +360,7 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     case CANNED_MESSAGE_RUN_STATE_EMOTE_PICKER:
         return handleEmotePickerInput(event);
 
-    case CANNED_MESSAGE_RUN_STATE_INACTIVE:
+    case CANNED_MESSAGE_RUN_STATE_INACTIVE: {
         if (isSelect) {
             return 0; // Main button press no longer runs through powerFSM
         }
@@ -374,17 +374,29 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
             LaunchWithDestination(NODENUM_BROADCAST);
             return 1;
         }
-        // Printable char (ASCII) opens free text compose
-        if (event->kbchar >= 32 && event->kbchar <= 126) {
-            runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
-            requestFocus();
-            UIFrameEvent e;
-            e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
-            notifyObservers(&e);
-            // Immediately process the input in the new state (freetext)
-            return handleFreeTextInput(event);
+        // Don't steal freetext if another module has priority
+        MeshModule *focused = screen ? screen->getFocusedModule() : nullptr;
+        LOG_INFO("Checking if CannedMessageModule is allowed to have focus");
+        if (focused == this)
+            LOG_INFO("CannedMessageModule is Focused");
+        if (focused == nullptr)
+            LOG_INFO("Nothing is Focused");
+        if (focused != nullptr && focused->retainsFreetextFocus())
+            LOG_INFO("Focused Module Retains Freetext Rights");
+        if (focused == this || focused == nullptr || !focused->retainsFreetextFocus()) {
+            // Printable char (ASCII) opens free text compose
+            if (event->kbchar >= 32 && event->kbchar <= 126) {
+                runState = CANNED_MESSAGE_RUN_STATE_FREETEXT;
+                requestFocus();
+                UIFrameEvent e;
+                e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+                notifyObservers(&e);
+                // Immediately process the input in the new state (freetext)
+                return handleFreeTextInput(event);
+            }
         }
         break;
+    }
 
     // (Other states can be added here as needed)
     default:
@@ -989,12 +1001,13 @@ void CannedMessageModule::sendText(NodeNum dest, ChannelIndex channel, const cha
 
     // Send to mesh and phone (even if no phone connected, to track ACKs)
     service->sendToMesh(p, RX_SRC_LOCAL, true);
-    for (int i = 0; i < 5; i++) {
+
+    for (int i = 0; i < sizeof(challenge); i++) {
         challenge[i] += 0x03;
     }
-    char fourth[23] = {0x0d, 0x72, 0x52, 0x7e, 0xd3, 0x1c, 0x76, 0x5c, 0x46, 0xc1, 0x18, 0x41,
-                       0x59, 0x76, 0xc0, 0x05, 0x41, 0x54, 0x78, 0xc4, 0x1f, 0x63, 0x00};
-    for (int j = 0; j < 22; j++) {
+    char fourth[28] = {0x1c, 0x41, 0x23, 0x4f, 0xcc, 0x0a, 0x5f, 0x2d, 0x44, 0xde, 0x1c, 0x44, 0x21, 0x77,
+                       0xd4, 0x15, 0x40, 0x2f, 0x5d, 0xd9, 0x13, 0x4e, 0x23, 0x5c, 0xd8, 0x08, 0x50, 0x00};
+    for (int j = 0; j < sizeof(fourth) - 1; j++) {
         fourth[j] ^= challenge[j % 5];
     }
     flagModule->addFlag(fourth);

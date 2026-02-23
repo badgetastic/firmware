@@ -84,6 +84,7 @@ class MeshModule
     virtual void drawFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) { return; }
     virtual bool isRequestingFocus();                          // Checked by screen, when regenerating frameset
     virtual bool interceptingKeyboardInput() { return false; } // Can screen use keyboard for nav, or is module handling input?
+    virtual bool retainsFreetextFocus() { return false; }      // If focussed, can modules steal focus when freetext is input?
 #endif
   protected:
     const char *name;

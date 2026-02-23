@@ -1185,6 +1185,14 @@ void Screen::setFrames(FrameFocus focus)
     setFastFramerate(); // Draw ASAP
 }
 
+MeshModule *Screen::getFocusedModule()
+{
+    uint8_t idx = ui->getUiState()->currentFrame;
+    if (idx < moduleFrames.size())
+        return moduleFrames[idx];
+    return nullptr;
+}
+
 void Screen::setFrameImmediateDraw(FrameCallback *drawFrames)
 {
     ui->disableAllIndicators();
